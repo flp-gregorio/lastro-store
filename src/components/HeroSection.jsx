@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import imgCar from '../assets/placeholders/capricorn-01-zagato-17 - car.webp';
 import imgSculpture from '../assets/placeholders/The shape of Speed - Limited Edition - Formula 1 - sculpture.jpg';
 import imgWatch from '../assets/placeholders/OMEGA_310.60.42.50.99.001_meteorite - watch.jpeg';
@@ -30,10 +31,10 @@ const HeroSection = () => {
               Curated selection of rare art, iconic objects and extraordinary pieces for a discerning few.
             </p>
             
-            <button className="border border-white/30 text-white px-8 py-4 w-fit hover:border-[#A69076] hover:text-[#A69076] transition-all duration-300 text-[10px] md:text-xs tracking-[0.2em] uppercase flex items-center space-x-4 group">
+            <Link to="/catalog" className="border border-white/30 text-white px-8 py-4 w-fit hover:border-[#A69076] hover:text-[#A69076] transition-all duration-300 text-[10px] md:text-xs tracking-[0.2em] uppercase flex items-center space-x-4 group">
               <span>EXPLORE COLLECTION</span>
               <span className="group-hover:translate-x-1 transition-transform duration-300">&rarr;</span>
-            </button>
+            </Link>
           </div>
         </div>
 

@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import imgCar from '../assets/placeholders/capricorn-01-zagato-17 - car.webp';
 import imgSculpture from '../assets/placeholders/The shape of Speed - Limited Edition - Formula 1 - sculpture.jpg';
 import imgWatch from '../assets/placeholders/OMEGA_310.60.42.50.99.001_meteorite - watch.jpeg';
@@ -39,15 +40,15 @@ const CuratedSelection = () => {
         <div className="flex items-center mb-12">
           <h2 className="text-2xl font-serif tracking-widest">CURATED SELECTION</h2>
           <div className="flex-grow border-t border-[#A69076]/40 mx-6"></div>
-          <a href="#" className="text-xs uppercase tracking-[0.2em] text-gray-400 hover:text-[#A69076] transition-colors duration-300">
+          <Link to="/catalog" className="text-xs uppercase tracking-[0.2em] text-gray-400 hover:text-[#A69076] transition-colors duration-300">
             VIEW ALL -&gt;
-          </a>
+          </Link>
         </div>
 
         {/* Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-12">
           {items.map((item) => (
-            <div key={item.id} className="bg-[#141414] rounded-lg overflow-hidden transition-transform duration-300 hover:scale-105 group cursor-pointer">
+            <Link to={`/product/${item.id}`} key={item.id} className="bg-[#141414] rounded-lg overflow-hidden transition-transform duration-300 hover:scale-105 group cursor-pointer block">
               <div className="bg-[#1a1a1a] h-64 flex items-center justify-center relative overflow-hidden">
                 <img 
                   src={item.image} 
@@ -65,7 +66,7 @@ const CuratedSelection = () => {
                   &rarr;
                 </div>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       </div>
