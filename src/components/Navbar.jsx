@@ -6,18 +6,18 @@ const Navbar = () => {
     <nav className="bg-[#0a0a0a]/95 backdrop-blur-md border-b-[0.5px] border-[#A69076]/40 fixed w-full z-50 top-0">
       <div className="container mx-auto flex justify-between items-center px-4 md:px-8 py-3 md:py-4">
         {/* Left - Logo */}
-        <div className="flex items-center space-x-3 md:space-x-4">
-          <Link to="/" className="flex flex-col justify-center items-center group">
-            <h1 className="text-white text-sm md:text-lg tracking-[0.3em] uppercase font-serif leading-tight tracking-wider antialiased group-hover:text-[#A69076] transition-colors">LASTRO</h1>
-            <span className="text-gray-500 text-[8px] md:text-[9px] tracking-[0.3em] uppercase mt-0.5">ART / DESIGN / LUXURY</span>
-          </Link>
-        </div>
+        <Link to="/" className="flex items-center space-x-3 md:space-x-4">
+          <div className="flex flex-col justify-center items-center">
+            <h1 className="text-white text-sm md:text-lg tracking-[0.3em] uppercase font-serif leading-tight tracking-wider antialiased">LASTRO</h1>
+            <span className="text-gray-500 text-[8px] md:text-[9px] tracking-[0.3em] uppercase mt-0.5">ARTE / DESIGN / LUXO</span>
+          </div>
+        </Link>
 
         {/* Center - Links */}
         <ul className="hidden lg:flex space-x-6 xl:space-x-8">
-          {['ART', 'COLLECTIBLES', 'FURNITURE', 'WATCHES', 'AUTOMOTIVE', 'MISCELLANEA'].map((item) => (
+          {['ARTE', 'COLECIONÁVEIS', 'MOBILIÁRIO', 'RELÓGIOS', 'AUTOMOTIVO', 'DIVERSOS'].map((item) => (
             <li key={item}>
-              <Link to="/catalog" className="text-white hover:text-[#A69076] uppercase text-xs tracking-[0.2em] transition-colors duration-300">
+              <Link to="/catalogo" className="text-white hover:text-[#A69076] uppercase text-xs tracking-[0.2em] transition-colors duration-300">
                 {item}
               </Link>
             </li>
@@ -36,9 +36,9 @@ const Navbar = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
             </svg>
           </button>
-          <button className="border border-[#A69076] text-[#A69076] px-4 py-1.5 md:px-6 md:py-2 text-xs md:text-sm hover:bg-[#A69076] hover:text-black transition-colors duration-300">
-            PRIVATE ACCESS
-          </button>
+          <Link to="/login" className="border border-[#A69076] text-[#A69076] px-4 py-1.5 md:px-6 md:py-2 text-xs md:text-sm hover:bg-[#A69076] hover:text-black transition-colors duration-300">
+            ACESSO PRIVADO
+          </Link>
           
           {/* Mobile Menu Button */}
           <button className="text-white hover:text-[#A69076] lg:hidden transition-colors duration-300">
