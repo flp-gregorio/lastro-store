@@ -3,14 +3,15 @@ const router = express.Router();
 const supabase = require('../config/supabase');
 const validate = require('../middlewares/validate');
 const { createPecaSchema } = require('../schemas/peca.schema');
+const {
+  generatePassportId,
+  generateShareToken,
+  nonInferredField,
+  formatPecaPassport,
+  logEvent
+} = require('../utils/eventLogger');
 
-// Helper para normalizar colunas snake_case do Postgres para camelCase esperado pelo React
-const formatPeca = (item) => ({
-  ...item,
-  passportId: item.passportId || item.passport_id || 'Pendente',
-  expertName: item.expertName || item.expert_name || 'Pendente',
-  expertDate: item.expertDate || item.expert_date || 'Pendente'
-});
+const getFrontendBaseUrl = () => process.env.FRONTEND_URL || 'http://localhost:5173';
 
 // GET /api/pecas - Listar todas as peças
 router.get('/', async (req, res) => {
@@ -29,14 +30,15 @@ router.get('/', async (req, res) => {
       return res.status(500).json({ message: 'Erro ao consultar peças', error: error.message });
     }
 
-    res.json(data.map(formatPeca));
+    const baseUrl = getFrontendBaseUrl();
+    res.json(data.map((item) => formatPecaPassport(item, baseUrl)));
   } catch (err) {
     console.error('Erro inesperado ao listar peças:', err);
     res.status(500).json({ message: 'Erro interno ao consultar peças' });
   }
 });
 
-// GET /api/pecas/:id - Buscar peça específica
+// GET /api/pecas/:id - Buscar peça específica (por id, passport_id ou share_token)
 router.get('/:id', async (req, res) => {
   const { id } = req.params;
 
@@ -45,11 +47,36 @@ router.get('/:id', async (req, res) => {
       return res.status(500).json({ message: 'Supabase não está configurado no .env' });
     }
 
-    const { data, error } = await supabase
-      .from('pecas')
-      .select('*')
-      .eq('id', id)
-      .maybeSingle();
+    const isNumeric = /^\d+$/.test(id);
+    let data = null;
+    let error = null;
+
+    if (isNumeric) {
+      const result = await supabase
+        .from('pecas')
+        .select('*')
+        .eq('id', Number(id))
+        .maybeSingle();
+      data = result.data;
+      error = result.error;
+    } else {
+      const byPassport = await supabase
+        .from('pecas')
+        .select('*')
+        .eq('passport_id', id)
+        .maybeSingle();
+      data = byPassport.data;
+      error = byPassport.error;
+
+      if (!data && !error) {
+        const byToken = await supabase
+          .from('pecas')
+          .select('*')
+          .eq('share_token', id)
+          .maybeSingle();
+        data = byToken.data;
+      }
+    }
 
     if (error) {
       console.error('[Supabase GET /pecas/:id Error]:', error.message);
@@ -60,48 +87,109 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ message: 'Peça não encontrada' });
     }
 
-    res.json(formatPeca(data));
+    res.json(formatPecaPassport(data, getFrontendBaseUrl()));
   } catch (err) {
     console.error('Erro inesperado ao buscar peça:', err);
     res.status(500).json({ message: 'Erro interno ao buscar peça' });
   }
 });
 
-// POST /api/pecas - Cadastrar nova peça com validação Zod
+// POST /api/pecas - Cadastrar nova peça com validação Zod e campos P0 do Passaporte
 router.post('/', validate(createPecaSchema), async (req, res) => {
-  const { name, category, price, description, image } = req.body;
+  const {
+    name,
+    category,
+    price,
+    description,
+    image,
+    ownerId,
+    provenance,
+    conservationState,
+    conservationScore,
+    history,
+    expertName,
+    expertDate,
+    isPublished
+  } = req.body;
 
   if (!supabase) {
     return res.status(500).json({ message: 'Supabase não está configurado no .env' });
   }
 
-  const generatedPassportId = `LST-2026-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+  // RNF11: Identificadores não enumeráveis
+  const generatedPassportId = generatePassportId();
+  const generatedShareToken = generateShareToken();
 
-  const novaPecaPayload = {
+  // RF03: Campos sem informação ficam como 'Não informado' sem inferência
+  const fullPecaPayload = {
     name,
     category,
-    price,
+    price: price ?? 0,
     description: description || '',
     image: image || 'https://images.unsplash.com/photo-1541961017774-22349e4a1262?q=80&w=1000&auto=format&fit=crop',
     status: 'em revisão',
     passport_id: generatedPassportId,
-    expert_name: 'Pendente',
-    expert_date: 'Pendente'
+    expert_name: nonInferredField(expertName),
+    expert_date: nonInferredField(expertDate),
+    owner_id: ownerId || null,
+    provenance: nonInferredField(provenance),
+    conservation_state: nonInferredField(conservationState),
+    conservation_score: conservationScore ?? null,
+    history: Array.isArray(history) ? history : [],
+    share_token: generatedShareToken,
+    share_status: 'active',
+    is_published: isPublished !== undefined ? isPublished : true
   };
 
   try {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('pecas')
-      .insert([novaPecaPayload])
+      .insert([fullPecaPayload])
       .select()
       .single();
+
+    // Fallback compatível caso o SQL de migração P0 ainda não tenha sido executado no Supabase
+    if (error && error.message && error.message.includes('column')) {
+      console.warn('[Supabase Schema Fallback]: Inserindo apenas colunas v1 até que schema_p0_dre_v2.sql seja executado.');
+      const legacyPayload = {
+        name,
+        category,
+        price: price ?? 0,
+        description: description || '',
+        image: fullPecaPayload.image,
+        status: 'em revisão',
+        passport_id: generatedPassportId,
+        expert_name: nonInferredField(expertName),
+        expert_date: nonInferredField(expertDate)
+      };
+
+      const legacyResult = await supabase
+        .from('pecas')
+        .insert([legacyPayload])
+        .select()
+        .single();
+
+      data = legacyResult.data ? { ...fullPecaPayload, ...legacyResult.data } : null;
+      error = legacyResult.error;
+    }
 
     if (error) {
       console.error('[Supabase POST /pecas Error]:', error.message);
       return res.status(400).json({ message: 'Erro ao cadastrar peça no banco', error: error.message });
     }
 
-    res.status(201).json(formatPeca(data));
+    // RF19: Registra evento `peca_cadastrada`
+    await logEvent({
+      eventName: 'peca_cadastrada',
+      pecaId: data.id,
+      passportId: data.passport_id,
+      userId: ownerId || null,
+      origin: 'direto',
+      isOwner: true,
+      metadata: { category: data.category }
+    });
+
+    res.status(201).json(formatPecaPassport(data, getFrontendBaseUrl()));
   } catch (err) {
     console.error('Erro inesperado ao criar peça:', err);
     res.status(500).json({ message: 'Erro interno ao salvar peça' });
