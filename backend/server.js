@@ -1,8 +1,11 @@
+const path = require('path');
 const express = require('express');
 const cors = require('cors');
-require('dotenv').config();
+require('dotenv').config({ path: path.resolve(__dirname, '.env') });
 
 const pecasRoutes = require('./routes/pecas.routes');
+const passaportesRoutes = require('./routes/passaportes.routes');
+const eventosRoutes = require('./routes/eventos.routes');
 const authRoutes = require('./routes/auth.routes');
 
 const app = express();
@@ -15,13 +18,16 @@ app.use(express.json());
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
+    dreVersion: '2.0-P0',
     uptime: process.uptime(),
     timestamp: new Date().toISOString()
   });
 });
 
-// Rotas da Aplicação
+// Rotas da Aplicação (DRE v2.0 - Incremento P0)
 app.use('/api/pecas', pecasRoutes);
+app.use('/api/passaportes', passaportesRoutes);
+app.use('/api/eventos', eventosRoutes);
 app.use('/api', authRoutes);
 
 // Middleware para tratamento de 404
@@ -36,9 +42,14 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`\n========================================`);
-  console.log(`Lastro Backend rodando na porta ${PORT}`);
-  console.log(`URL Base: http://localhost:${PORT}/api`);
-  console.log(`========================================\n`);
-});
+
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`\n========================================`);
+    console.log(`Lastro Backend (DRE v2.0 - P0) rodando na porta ${PORT}`);
+    console.log(`URL Base: http://localhost:${PORT}/api`);
+    console.log(`========================================\n`);
+  });
+}
+
+module.exports = app;
