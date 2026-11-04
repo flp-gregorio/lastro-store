@@ -10,7 +10,9 @@ import {
   FileCheck2,
   Clock,
   ShieldAlert,
-  SendHorizontal
+  SendHorizontal,
+  FileText,
+  Paperclip
 } from 'lucide-react';
 
 const CATEGORIES = [
@@ -26,11 +28,13 @@ const CATEGORIES = [
 const CreateItem = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
+  const docInputRef = useRef(null);
 
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [imageMode, setImageMode] = useState('upload'); // 'upload' | 'url'
   const [imagePreview, setImagePreview] = useState('');
+  const [attachedDocs, setAttachedDocs] = useState([]); // Array de { name, size, type, data }
   
   const [formData, setFormData] = useState({
     name: '',
@@ -57,6 +61,7 @@ const CreateItem = () => {
     return Number(val).toLocaleString('pt-BR');
   };
 
+  // Image Upload handler
   const handleFileUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -87,6 +92,49 @@ const CreateItem = () => {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  // PDF & Document Attachment handler
+  const handleDocUpload = (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+
+    const validDocs = [];
+
+    files.forEach((file) => {
+      const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+      const isImg = file.type.startsWith('image/');
+
+      if (!isPdf && !isImg) {
+        alert(`O arquivo "${file.name}" não é um documento válido. Aceitamos PDF ou imagens de certificados.`);
+        return;
+      }
+
+      if (file.size > 15 * 1024 * 1024) {
+        alert(`O arquivo "${file.name}" excede o limite de 15MB.`);
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setAttachedDocs((prev) => [
+          ...prev,
+          {
+            name: file.name,
+            size: (file.size / 1024).toFixed(1) + ' KB',
+            type: isPdf ? 'pdf' : 'image',
+            data: reader.result
+          }
+        ]);
+      };
+      reader.readAsDataURL(file);
+    });
+
+    if (docInputRef.current) docInputRef.current.value = '';
+  };
+
+  const removeDoc = (index) => {
+    setAttachedDocs((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -95,7 +143,6 @@ const CreateItem = () => {
     const finalImage = formData.image.trim() || 'https://images.unsplash.com/photo-1541961017774-22349e4a1262?q=80&w=1000&auto=format&fit=crop';
 
     // DRE v2.0: Submetido para perícia e curadoria da equipe Lastro.
-    // O passaporte NÃO é emitido pelo usuário. Fica em status "em revisão" e expert "Aguardando perícia credenciada".
     const payload = {
       name: formData.name.trim(),
       category: formData.category,
@@ -108,11 +155,13 @@ const CreateItem = () => {
       expertName: 'Aguardando atribuição de perito credenciado',
       expertDate: 'Pendente de laudo',
       isPublished: false,
+      documentsCount: attachedDocs.length,
+      documentsSummary: attachedDocs.map((d) => d.name),
       history: [
         {
           date: String(new Date().getFullYear()),
           title: 'Submissão de Dossiê para Curadoria',
-          details: 'Peça submetida pelo proprietário para conferência documental e perícia técnica.',
+          details: `Peça submetida pelo proprietário com ${attachedDocs.length} documento(s)/comprovante(s) em anexo para conferência documental e perícia técnica.`,
           verifiedBy: 'Triagem Lastro'
         }
       ]
@@ -153,10 +202,17 @@ const CreateItem = () => {
             </span>
             <h2 className="text-2xl md:text-3xl font-serif text-white mb-3">Submetido à Curadoria</h2>
             <p className="text-gray-400 font-sans text-xs leading-relaxed">
-              Sua peça foi recebida e encaminhada para o corpo de <strong>peritos credenciados Lastro</strong>. 
+              Sua peça e os documentos anexados foram recebidos e encaminhados para o corpo de <strong>peritos credenciados Lastro</strong>. 
               Após análise física e documental, o laudo pericial será concluído e o Passaporte Digital emitido.
             </p>
           </div>
+
+          {attachedDocs.length > 0 && (
+            <div className="bg-[#141414] border border-[#222] p-3 text-left font-sans text-xs flex items-center gap-2 text-gray-300">
+              <FileText className="w-4 h-4 text-[#A69076] shrink-0" />
+              <span><strong>{attachedDocs.length}</strong> documento(s)/PDF(s) anexado(s) para conferência técnica.</span>
+            </div>
+          )}
 
           <div className="bg-[#161616] border border-[#222] p-4 text-left space-y-2 font-sans text-xs">
             <div className="flex items-center gap-2 text-gray-300 font-medium">
@@ -200,7 +256,7 @@ const CreateItem = () => {
           <h1 className="text-3xl md:text-5xl font-serif text-white">Submissão de Peça</h1>
         </div>
         <p className="text-gray-500 font-sans text-xs max-w-sm">
-          Envie os dados da sua peça para análise pericial. O Passaporte Digital é emitido exclusivamente após avaliação de perito credenciado.
+          Envie os dados e documentos da peça para análise pericial. O Passaporte Digital é emitido exclusivamente após avaliação de perito credenciado.
         </p>
       </div>
 
@@ -287,12 +343,12 @@ const CreateItem = () => {
           </div>
         </div>
 
-        {/* Card 2: Fotografia / Mídia */}
+        {/* Card 2: Fotografia Principal */}
         <div className="bg-[#111] border border-[#1e1e1e] p-6 md:p-8 space-y-6 shadow-xl">
           <div className="flex items-center justify-between border-b border-[#1e1e1e] pb-4">
             <div>
-              <h3 className="text-white font-serif text-lg">Registros Fotográficos</h3>
-              <p className="text-gray-500 font-sans text-xs mt-1">Fotos nítidas auxiliam a triagem da curadoria.</p>
+              <h3 className="text-white font-serif text-lg">Fotografia Principal da Peça</h3>
+              <p className="text-gray-500 font-sans text-xs mt-1">Imagem nítida que ilustra o item na listagem.</p>
             </div>
 
             {/* Mode Toggle Buttons */}
@@ -346,7 +402,7 @@ const CreateItem = () => {
                     Selecione a foto principal do item no seu computador
                   </p>
                   <p className="text-xs font-sans text-gray-500">
-                    Formatos: PNG, JPG, JPEG, WEBP (fotos adicionais podem ser solicitadas na perícia)
+                    Formatos suportados: PNG, JPG, JPEG, WEBP
                   </p>
                 </label>
               ) : null}
@@ -404,7 +460,79 @@ const CreateItem = () => {
           )}
         </div>
 
-        {/* Card 3: Declaração de Procedência pelo Solicitante */}
+        {/* Card 3: Documentos Probatórios & PDFs (Novo) */}
+        <div className="bg-[#111] border border-[#1e1e1e] p-6 md:p-8 space-y-6 shadow-xl">
+          <div className="border-b border-[#1e1e1e] pb-4">
+            <div className="flex items-center gap-2">
+              <Paperclip className="w-4 h-4 text-[#A69076]" />
+              <h3 className="text-white font-serif text-lg">Documentos de Procedência & Laudos Anteriores (PDF / Imagens)</h3>
+            </div>
+            <p className="text-gray-500 font-sans text-xs mt-1">
+              Anexe notas fiscais, certificados de manufatura, laudos gemológicos prévios ou recibos de leilão em PDF para acelerar a perícia.
+            </p>
+          </div>
+
+          <div>
+            <input 
+              ref={docInputRef}
+              type="file" 
+              accept=".pdf,application/pdf,image/*"
+              multiple
+              onChange={handleDocUpload}
+              className="hidden"
+              id="doc-upload"
+            />
+
+            <label 
+              htmlFor="doc-upload"
+              className="border-2 border-dashed border-[#2a2a2a] hover:border-[#A69076] transition-colors p-6 flex flex-col items-center justify-center cursor-pointer bg-[#0a0a0a]/50 group"
+            >
+              <div className="w-10 h-10 rounded-full bg-[#1a1a1a] flex items-center justify-center text-gray-400 group-hover:text-[#A69076] transition-colors mb-2">
+                <FileText className="w-5 h-5" />
+              </div>
+              <p className="text-xs font-sans text-gray-200 mb-0.5">
+                Clique para anexar arquivos PDF ou imagens de certificados
+              </p>
+              <p className="text-[10px] font-sans text-gray-500">
+                Suporta múltiplos arquivos em PDF, PNG, JPG (até 15MB por documento)
+              </p>
+            </label>
+          </div>
+
+          {/* List of Attached Documents */}
+          {attachedDocs.length > 0 && (
+            <div className="space-y-2 pt-2">
+              <p className="text-[10px] uppercase tracking-widest text-gray-400 font-sans">
+                Documentos Anexados ({attachedDocs.length})
+              </p>
+              <div className="divide-y divide-[#1e1e1e] border border-[#222] bg-[#0a0a0a]">
+                {attachedDocs.map((doc, idx) => (
+                  <div key={idx} className="p-3 flex items-center justify-between text-xs font-sans">
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      <div className="w-8 h-8 rounded bg-[#161616] flex items-center justify-center text-[#A69076] shrink-0 border border-[#2a2a2a]">
+                        {doc.type === 'pdf' ? <FileText className="w-4 h-4" /> : <ImageIcon className="w-4 h-4" />}
+                      </div>
+                      <div className="truncate">
+                        <p className="text-gray-200 font-medium truncate">{doc.name}</p>
+                        <p className="text-[10px] text-gray-500">{doc.size} · {doc.type === 'pdf' ? 'Documento PDF' : 'Certificado Visual'}</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeDoc(idx)}
+                      className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-white/5 transition-colors cursor-pointer shrink-0 ml-3"
+                      title="Remover documento"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Card 4: Declaração de Procedência pelo Solicitante */}
         <div className="bg-[#111] border border-[#1e1e1e] p-6 md:p-8 space-y-6 shadow-xl">
           <div className="border-b border-[#1e1e1e] pb-4">
             <h3 className="text-white font-serif text-lg">Declaração de Procedência do Solicitante</h3>
