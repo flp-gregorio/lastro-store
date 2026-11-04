@@ -9,7 +9,7 @@ const Catalog = () => {
   useEffect(() => {
     const fetchItems = async () => {
       try {
-        const response = await fetch('http://localhost:3000/api/pecas');
+        const response = await fetch('/api/pecas');
         const data = await response.json();
         setItems(data);
       } catch (error) {

@@ -11,6 +11,12 @@ const {
   ensureFirstVisitAttribution,
   logEvent
 } = require('../utils/eventLogger');
+const {
+  isMockActive,
+  findMockItem,
+  findMockItemByIdOrPassport,
+  updateMockItem
+} = require('../mocks/data');
 
 /**
  * Busca uma peça pelo identificador público não enumerável (`share_token` ou `passport_id`)
@@ -19,6 +25,10 @@ const findPecaByPublicIdentifier = async (identifier) => {
   // RNF11: Bloqueia tentativa de enumeração por ID numérico sequencial
   if (/^\d+$/.test(identifier)) {
     return { item: null, blockedSequential: true };
+  }
+
+  if (isMockActive(supabase)) {
+    return findMockItem(identifier);
   }
 
   // Tenta buscar pelo `share_token` primeiro, depois pelo `passport_id`
@@ -59,7 +69,8 @@ router.get('/:identifier', async (req, res) => {
   const anonymousId = viewerUserId ? incomingAnonId : incomingAnonId || generateAnonymousId();
 
   try {
-    if (!supabase) {
+    const mockMode = isMockActive(supabase);
+    if (!supabase && !mockMode) {
       return res.status(500).json({ message: 'Supabase não está configurado no .env' });
     }
 
@@ -143,18 +154,25 @@ router.post('/:id/compartilhar', validate(shareLinkSchema), async (req, res) => 
   const { origin, regenerate, userId } = req.body;
 
   try {
-    if (!supabase) {
+    const mockMode = isMockActive(supabase);
+    if (!supabase && !mockMode) {
       return res.status(500).json({ message: 'Supabase não está configurado no .env' });
     }
 
-    // Busca peça por id interno ou passport_id
-    const isNumericId = /^\d+$/.test(id);
-    const query = supabase.from('pecas').select('*');
-    const { data: item, error: findError } = await (isNumericId
-      ? query.eq('id', Number(id)).maybeSingle()
-      : query.eq('passport_id', id).maybeSingle());
+    let item = null;
 
-    if (findError || !item) {
+    if (mockMode) {
+      item = findMockItemByIdOrPassport(id);
+    } else {
+      const isNumericId = /^\d+$/.test(id);
+      const query = supabase.from('pecas').select('*');
+      const { data, error: findError } = await (isNumericId
+        ? query.eq('id', Number(id)).maybeSingle()
+        : query.eq('passport_id', id).maybeSingle());
+      if (!findError) item = data;
+    }
+
+    if (!item) {
       return res.status(404).json({ message: 'Peça/Passaporte não encontrado para compartilhamento' });
     }
 
@@ -164,29 +182,36 @@ router.post('/:id/compartilhar', validate(shareLinkSchema), async (req, res) => 
 
     let updatedItem = item;
 
-    // Tenta persistir o token e status ativo no banco
-    const { data: savedItem, error: updateErr } = await supabase
-      .from('pecas')
-      .update({
+    if (mockMode) {
+      updatedItem = updateMockItem(item.id, {
         share_token: nextShareToken,
         share_status: 'active',
         share_revoked_at: null,
         is_published: true
-      })
-      .eq('id', item.id)
-      .select()
-      .maybeSingle();
-
-    if (!updateErr && savedItem) {
-      updatedItem = savedItem;
+      });
     } else {
-      // Fallback caso as colunas novas ainda não tenham sido aplicadas no Supabase
-      updatedItem = {
-        ...item,
-        share_token: nextShareToken,
-        share_status: 'active',
-        share_revoked_at: null
-      };
+      const { data: savedItem, error: updateErr } = await supabase
+        .from('pecas')
+        .update({
+          share_token: nextShareToken,
+          share_status: 'active',
+          share_revoked_at: null,
+          is_published: true
+        })
+        .eq('id', item.id)
+        .select()
+        .maybeSingle();
+
+      if (!updateErr && savedItem) {
+        updatedItem = savedItem;
+      } else {
+        updatedItem = {
+          ...item,
+          share_token: nextShareToken,
+          share_status: 'active',
+          share_revoked_at: null
+        };
+      }
     }
 
     const frontendBaseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
@@ -197,7 +222,6 @@ router.post('/:id/compartilhar', validate(shareLinkSchema), async (req, res) => 
     const qrTargetUrl = `${frontendBaseUrl}/passaporte/${shareIdentifier}?origem=qr`;
     const qrCodeImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrTargetUrl)}`;
 
-    // RF19: Registra o evento `link_gerado`
     await logEvent({
       eventName: 'link_gerado',
       pecaId: item.id,
@@ -239,34 +263,49 @@ router.post('/:id/revogar', async (req, res) => {
   const revokedAt = new Date().toISOString();
 
   try {
-    if (!supabase) {
+    const mockMode = isMockActive(supabase);
+    if (!supabase && !mockMode) {
       return res.status(500).json({ message: 'Supabase não está configurado no .env' });
     }
 
-    const isNumericId = /^\d+$/.test(id);
-    const query = supabase.from('pecas').select('*');
-    const { data: item, error: findError } = await (isNumericId
-      ? query.eq('id', Number(id)).maybeSingle()
-      : query.eq('passport_id', id).maybeSingle());
+    let item = null;
 
-    if (findError || !item) {
+    if (mockMode) {
+      item = findMockItemByIdOrPassport(id);
+    } else {
+      const isNumericId = /^\d+$/.test(id);
+      const query = supabase.from('pecas').select('*');
+      const { data, error: findError } = await (isNumericId
+        ? query.eq('id', Number(id)).maybeSingle()
+        : query.eq('passport_id', id).maybeSingle());
+      if (!findError) item = data;
+    }
+
+    if (!item) {
       return res.status(404).json({ message: 'Peça/Passaporte não encontrado para revogação' });
     }
 
-    const { error: updateErr } = await supabase
-      .from('pecas')
-      .update({
+    if (mockMode) {
+      updateMockItem(item.id, {
         share_status: 'revoked',
         share_revoked_at: revokedAt
-      })
-      .eq('id', item.id);
-
-    if (updateErr) {
-      console.warn('[Supabase POST /passaportes/:id/revogar Warning]:', updateErr.message);
-      return res.status(400).json({
-        message: 'Não foi possível revogar o link no banco. Verifique se a migração SQL P0 foi executada.',
-        error: updateErr.message
       });
+    } else {
+      const { error: updateErr } = await supabase
+        .from('pecas')
+        .update({
+          share_status: 'revoked',
+          share_revoked_at: revokedAt
+        })
+        .eq('id', item.id);
+
+      if (updateErr) {
+        console.warn('[Supabase POST /passaportes/:id/revogar Warning]:', updateErr.message);
+        return res.status(400).json({
+          message: 'Não foi possível revogar o link no banco. Verifique se a migração SQL P0 foi executada.',
+          error: updateErr.message
+        });
+      }
     }
 
     return res.json({
@@ -282,4 +321,3 @@ router.post('/:id/revogar', async (req, res) => {
 });
 
 module.exports = router;
-

@@ -10,14 +10,28 @@ const {
   formatPecaPassport,
   logEvent
 } = require('../utils/eventLogger');
+const {
+  isMockActive,
+  getMockItems,
+  findMockItemByIdOrPassport,
+  addMockItem
+} = require('../mocks/data');
 
 const getFrontendBaseUrl = () => process.env.FRONTEND_URL || 'http://localhost:5173';
 
 // GET /api/pecas - Listar todas as peças
 router.get('/', async (req, res) => {
   try {
-    if (!supabase) {
+    const mockMode = isMockActive(supabase);
+    if (!supabase && !mockMode) {
       return res.status(500).json({ message: 'Supabase não está configurado no .env' });
+    }
+
+    const baseUrl = getFrontendBaseUrl();
+
+    if (mockMode) {
+      const mockItems = getMockItems();
+      return res.json(mockItems.map((item) => formatPecaPassport(item, baseUrl)));
     }
 
     const { data, error } = await supabase
@@ -30,7 +44,6 @@ router.get('/', async (req, res) => {
       return res.status(500).json({ message: 'Erro ao consultar peças', error: error.message });
     }
 
-    const baseUrl = getFrontendBaseUrl();
     res.json(data.map((item) => formatPecaPassport(item, baseUrl)));
   } catch (err) {
     console.error('Erro inesperado ao listar peças:', err);
@@ -43,8 +56,17 @@ router.get('/:id', async (req, res) => {
   const { id } = req.params;
 
   try {
-    if (!supabase) {
+    const mockMode = isMockActive(supabase);
+    if (!supabase && !mockMode) {
       return res.status(500).json({ message: 'Supabase não está configurado no .env' });
+    }
+
+    if (mockMode) {
+      const item = findMockItemByIdOrPassport(id);
+      if (!item) {
+        return res.status(404).json({ message: 'Peça não encontrada' });
+      }
+      return res.json(formatPecaPassport(item, getFrontendBaseUrl()));
     }
 
     const isNumeric = /^\d+$/.test(id);
@@ -112,7 +134,8 @@ router.post('/', validate(createPecaSchema), async (req, res) => {
     isPublished
   } = req.body;
 
-  if (!supabase) {
+  const mockMode = isMockActive(supabase);
+  if (!supabase && !mockMode) {
     return res.status(500).json({ message: 'Supabase não está configurado no .env' });
   }
 
@@ -142,40 +165,46 @@ router.post('/', validate(createPecaSchema), async (req, res) => {
   };
 
   try {
-    let { data, error } = await supabase
-      .from('pecas')
-      .insert([fullPecaPayload])
-      .select()
-      .single();
+    let data = null;
 
-    // Fallback compatível caso o SQL de migração P0 ainda não tenha sido executado no Supabase
-    if (error && error.message && error.message.includes('column')) {
-      console.warn('[Supabase Schema Fallback]: Inserindo apenas colunas v1 até que schema_p0_dre_v2.sql seja executado.');
-      const legacyPayload = {
-        name,
-        category,
-        price: price ?? 0,
-        description: description || '',
-        image: fullPecaPayload.image,
-        status: 'em revisão',
-        passport_id: generatedPassportId,
-        expert_name: nonInferredField(expertName),
-        expert_date: nonInferredField(expertDate)
-      };
-
-      const legacyResult = await supabase
+    if (mockMode) {
+      data = addMockItem(fullPecaPayload);
+    } else {
+      let { data: inserted, error } = await supabase
         .from('pecas')
-        .insert([legacyPayload])
+        .insert([fullPecaPayload])
         .select()
         .single();
 
-      data = legacyResult.data ? { ...fullPecaPayload, ...legacyResult.data } : null;
-      error = legacyResult.error;
-    }
+      if (error && error.message && error.message.includes('column')) {
+        console.warn('[Supabase Schema Fallback]: Inserindo apenas colunas v1 até que schema_p0_dre_v2.sql seja executado.');
+        const legacyPayload = {
+          name,
+          category,
+          price: price ?? 0,
+          description: description || '',
+          image: fullPecaPayload.image,
+          status: 'em revisão',
+          passport_id: generatedPassportId,
+          expert_name: nonInferredField(expertName),
+          expert_date: nonInferredField(expertDate)
+        };
 
-    if (error) {
-      console.error('[Supabase POST /pecas Error]:', error.message);
-      return res.status(400).json({ message: 'Erro ao cadastrar peça no banco', error: error.message });
+        const legacyResult = await supabase
+          .from('pecas')
+          .insert([legacyPayload])
+          .select()
+          .single();
+
+        inserted = legacyResult.data ? { ...fullPecaPayload, ...legacyResult.data } : null;
+        error = legacyResult.error;
+      }
+
+      if (error) {
+        console.error('[Supabase POST /pecas Error]:', error.message);
+        return res.status(400).json({ message: 'Erro ao cadastrar peça no banco', error: error.message });
+      }
+      data = inserted;
     }
 
     // RF19: Registra evento `peca_cadastrada`

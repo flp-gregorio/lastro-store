@@ -10,7 +10,7 @@ const ItemDetails = () => {
   useEffect(() => {
     const fetchItem = async () => {
       try {
-        const response = await fetch(`http://localhost:3000/api/pecas/${id}`);
+        const response = await fetch(`/api/pecas/${id}`);
         if (!response.ok) throw new Error('Not found');
         const data = await response.json();
         setItem(data);
@@ -89,9 +89,12 @@ const ItemDetails = () => {
               </div>
             </div>
             
-            <button className="mt-6 w-full flex items-center justify-center gap-2 bg-white text-black py-3 font-sans uppercase tracking-widest text-xs font-medium hover:bg-gray-200 transition-colors">
-              <FileText className="w-4 h-4" /> Visualizar Laudo Completo
-            </button>
+            <Link
+              to={`/passaporte/${item.shareToken || item.passportId}?origem=link_compartilhado`}
+              className="mt-6 w-full flex items-center justify-center gap-2 bg-white text-black py-3 font-sans uppercase tracking-widest text-xs font-medium hover:bg-gray-200 transition-colors"
+            >
+              <FileText className="w-4 h-4" /> Acessar Passaporte Completo
+            </Link>
           </div>
 
           <div className="flex gap-4">

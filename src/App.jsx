@@ -8,6 +8,7 @@ import Auth from './pages/Auth';
 import Landing from './pages/Landing';
 import Dashboard from './pages/Dashboard';
 import CreateItem from './pages/CreateItem';
+import Passaporte from './pages/Passaporte';
 
 const App = () => {
   return (
@@ -22,6 +23,8 @@ const App = () => {
           <Route path="/login" element={<Auth />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/dashboard/nova-peca" element={<CreateItem />} />
+          {/* RF01, RF02, RF04 — Consulta pública do Passaporte Digital por link ou QR Code */}
+          <Route path="/passaporte/:identifier" element={<Passaporte />} />
         </Routes>
       </main>
     </div>
