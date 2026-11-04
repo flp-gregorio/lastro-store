@@ -4,14 +4,20 @@ const supabase = require('../config/supabase');
 const validate = require('../middlewares/validate');
 const { loginSchema } = require('../schemas/auth.schema');
 const { linkFirstVisitToUser, logEvent } = require('../utils/eventLogger');
+const {
+  isMockActive,
+  registerMockUser,
+  getMockUserByEmail
+} = require('../mocks/data');
 
 // POST /api/login - Autenticação com validação Zod, integração Supabase Auth e registro de sessão (RF19/RF20)
 router.post('/login', validate(loginSchema), async (req, res) => {
   const { email, password, anonymousId, origin = 'direto' } = req.body;
+  const mockMode = isMockActive(supabase);
 
   try {
-    // Se Supabase estiver conectado, tenta autenticar no Supabase Auth
-    if (supabase) {
+    // Se Supabase estiver conectado e mock desativado, tenta autenticar no Supabase Auth
+    if (supabase && !mockMode) {
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
@@ -52,10 +58,15 @@ router.post('/login', validate(loginSchema), async (req, res) => {
       }
 
       console.warn('[Supabase Auth Warning]:', error?.message);
+      return res.status(401).json({ message: error?.message || 'Credenciais inválidas' });
     }
 
-    // Modo fallback de desenvolvimento (para testes locais rápidos)
-    const mockUserId = '1';
+    // Modo Mock Local
+    const existingMock = getMockUserByEmail(email);
+    const mockUserId = existingMock ? existingMock.id : '1';
+    const mockName = existingMock ? existingMock.name : email.split('@')[0].toUpperCase();
+    const mockRole = existingMock ? existingMock.role : 'Vendedor';
+
     let attribution = null;
     if (anonymousId) {
       attribution = await linkFirstVisitToUser({
@@ -77,9 +88,9 @@ router.post('/login', validate(loginSchema), async (req, res) => {
       token: 'mock-jwt-token-luxury-curation',
       user: {
         id: mockUserId,
-        name: email.split('@')[0].toUpperCase(),
+        name: mockName,
         email: email,
-        role: 'Vendedor',
+        role: mockRole,
         firstOrigin: attribution?.first_origin || null
       }
     });
@@ -89,15 +100,51 @@ router.post('/login', validate(loginSchema), async (req, res) => {
   }
 });
 
-// POST /api/register - Criação de usuário no Supabase Auth e vínculo de origem da primeira visita (RF20)
+// POST /api/register - Criação de usuário no Supabase Auth ou Store Local (RF20)
 router.post('/register', validate(loginSchema), async (req, res) => {
   const { email, password, name, role = 'Comprador', anonymousId, origin = 'direto' } = req.body;
-
-  if (!supabase) {
-    return res.status(400).json({ message: 'Supabase não está configurado no .env' });
-  }
+  const mockMode = isMockActive(supabase);
 
   try {
+    if (mockMode) {
+      // Registra no store local in-memory
+      const newUser = registerMockUser({ email, password, name, role });
+
+      let attribution = null;
+      if (anonymousId) {
+        attribution = await linkFirstVisitToUser({
+          anonymousId,
+          userId: newUser.id,
+          fallbackOrigin: origin
+        });
+      }
+
+      await logEvent({
+        eventName: 'sessao_iniciada',
+        userId: newUser.id,
+        anonymousId,
+        origin,
+        isOwner: false
+      });
+
+      return res.status(201).json({
+        message: 'Usuário registrado com sucesso!',
+        token: 'mock-jwt-token-registered',
+        user: {
+          id: newUser.id,
+          name: newUser.name,
+          email: newUser.email,
+          role: newUser.role,
+          firstOrigin: attribution?.first_origin || null
+        },
+        attribution
+      });
+    }
+
+    if (!supabase) {
+      return res.status(400).json({ message: 'Supabase não está configurado no .env' });
+    }
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -132,7 +179,7 @@ router.post('/register', validate(loginSchema), async (req, res) => {
     });
   } catch (err) {
     console.error('Erro ao registrar usuário:', err);
-    res.status(500).json({ message: 'Erro interno ao cadastrar usuário' });
+    res.status(400).json({ message: err.message || 'Erro interno ao cadastrar usuário' });
   }
 });
 
