@@ -3,13 +3,14 @@ import { useNavigate, Link } from 'react-router-dom';
 import { 
   ArrowLeft, 
   Upload, 
-  CheckCircle, 
+  CheckCircle2, 
   Link2, 
   Image as ImageIcon, 
   X, 
-  Sparkles,
-  ShieldCheck,
-  FileText
+  FileCheck2,
+  Clock,
+  ShieldAlert,
+  SendHorizontal
 } from 'lucide-react';
 
 const CATEGORIES = [
@@ -27,8 +28,7 @@ const CreateItem = () => {
   const fileInputRef = useRef(null);
 
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [createdPassportUrl, setCreatedPassportUrl] = useState('');
+  const [submitted, setSubmitted] = useState(false);
   const [imageMode, setImageMode] = useState('upload'); // 'upload' | 'url'
   const [imagePreview, setImagePreview] = useState('');
   
@@ -39,8 +39,7 @@ const CreateItem = () => {
     description: '',
     image: '',
     provenance: '',
-    conservationState: 'Excelente',
-    expertName: 'Perito Lastro Credenciado'
+    ownerConservationNotes: 'Excelente'
   });
 
   const handleChange = (e) => {
@@ -49,7 +48,6 @@ const CreateItem = () => {
   };
 
   const handlePriceChange = (e) => {
-    // Only allow digits or empty string to ensure clean format without spin arrows
     const raw = e.target.value.replace(/\D/g, '');
     setFormData((prev) => ({ ...prev, price: raw }));
   };
@@ -59,7 +57,6 @@ const CreateItem = () => {
     return Number(val).toLocaleString('pt-BR');
   };
 
-  // Local file upload handling via FileReader (Base64 data URL)
   const handleFileUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -97,22 +94,26 @@ const CreateItem = () => {
     const numericPrice = formData.price ? parseFloat(formData.price) : 0;
     const finalImage = formData.image.trim() || 'https://images.unsplash.com/photo-1541961017774-22349e4a1262?q=80&w=1000&auto=format&fit=crop';
 
+    // DRE v2.0: Submetido para perícia e curadoria da equipe Lastro.
+    // O passaporte NÃO é emitido pelo usuário. Fica em status "em revisão" e expert "Aguardando perícia credenciada".
     const payload = {
       name: formData.name.trim(),
       category: formData.category,
       price: numericPrice,
       description: formData.description.trim(),
       image: finalImage,
-      provenance: formData.provenance.trim() || 'Acervo particular registrado pelo proprietário.',
-      conservationState: formData.conservationState,
-      expertName: formData.expertName.trim(),
-      expertDate: new Date().toLocaleDateString('pt-BR'),
+      provenance: formData.provenance.trim() || 'Não informado pelo solicitante',
+      conservationState: formData.ownerConservationNotes,
+      status: 'em revisão',
+      expertName: 'Aguardando atribuição de perito credenciado',
+      expertDate: 'Pendente de laudo',
+      isPublished: false,
       history: [
         {
           date: String(new Date().getFullYear()),
-          title: 'Registro Inicial no Acervo Lastro',
-          details: 'Dossiê submetido pelo proprietário para avaliação e emissão do Passaporte Digital.',
-          verifiedBy: 'Equipe Lastro'
+          title: 'Submissão de Dossiê para Curadoria',
+          details: 'Peça submetida pelo proprietário para conferência documental e perícia técnica.',
+          verifiedBy: 'Triagem Lastro'
         }
       ]
     };
@@ -126,45 +127,52 @@ const CreateItem = () => {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Falha ao registrar peça');
+        throw new Error(errorData.message || 'Falha ao submeter peça');
       }
 
-      const createdItem = await response.json();
-      setCreatedPassportUrl(`/passaporte/${createdItem.shareToken || createdItem.passportId}`);
-      setSuccess(true);
+      setSubmitted(true);
     } catch (error) {
       console.error(error);
-      alert(`Erro ao cadastrar peça: ${error.message}`);
+      alert(`Erro ao submeter proposta: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  if (success) {
+  if (submitted) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center pt-24 pb-20 px-4 bg-[#0a0a0a]">
-        <div className="max-w-md w-full bg-[#111] border border-[#2a2a2a] p-8 text-center space-y-6 shadow-2xl">
-          <div className="w-16 h-16 rounded-full border border-emerald-500/40 bg-emerald-500/10 flex items-center justify-center mx-auto">
-            <CheckCircle className="w-8 h-8 text-emerald-400" />
+        <div className="max-w-lg w-full bg-[#111] border border-[#2a2a2a] p-8 md:p-10 text-center space-y-6 shadow-2xl">
+          <div className="w-16 h-16 rounded-full border border-[#A69076]/40 bg-[#A69076]/10 flex items-center justify-center mx-auto">
+            <Clock className="w-8 h-8 text-[#A69076]" />
           </div>
 
           <div>
-            <h2 className="text-2xl md:text-3xl font-serif text-white mb-2">Peça Registrada</h2>
+            <span className="text-[10px] uppercase tracking-[0.25em] text-[#A69076] font-sans block mb-1">
+              Dossiê Enviado com Sucesso
+            </span>
+            <h2 className="text-2xl md:text-3xl font-serif text-white mb-3">Submetido à Curadoria</h2>
             <p className="text-gray-400 font-sans text-xs leading-relaxed">
-              O dossiê foi criado com sucesso e o Passaporte Digital já está disponível para consulta e compartilhamento.
+              Sua peça foi recebida e encaminhada para o corpo de <strong>peritos credenciados Lastro</strong>. 
+              Após análise física e documental, o laudo pericial será concluído e o Passaporte Digital emitido.
             </p>
           </div>
 
-          <div className="pt-2 space-y-3">
-            <Link
-              to={createdPassportUrl}
-              className="w-full flex items-center justify-center gap-2 bg-[#A69076] text-black py-3.5 px-6 font-sans uppercase tracking-widest text-xs font-semibold hover:bg-[#b8a287] transition-colors"
-            >
-              <FileText className="w-4 h-4" /> Visualizar Passaporte Digital
-            </Link>
+          <div className="bg-[#161616] border border-[#222] p-4 text-left space-y-2 font-sans text-xs">
+            <div className="flex items-center gap-2 text-gray-300 font-medium">
+              <FileCheck2 className="w-4 h-4 text-[#A69076]" /> Próximas etapas:
+            </div>
+            <ul className="text-gray-400 text-[11px] space-y-1.5 pl-6 list-disc">
+              <li>Triagem preliminar de procedência pela equipe Lastro (até 48h).</li>
+              <li>Atribuição de perito especializado no nicho da peça.</li>
+              <li>Emissão do laudo técnico com assinatura digital imutável.</li>
+            </ul>
+          </div>
+
+          <div className="pt-2">
             <Link
               to="/dashboard"
-              className="w-full flex items-center justify-center gap-2 border border-gray-800 text-gray-300 py-3 px-6 font-sans uppercase tracking-widest text-xs hover:border-white transition-colors"
+              className="w-full flex items-center justify-center gap-2 bg-white text-black py-3.5 px-6 font-sans uppercase tracking-widest text-xs font-semibold hover:bg-gray-200 transition-colors"
             >
               Voltar ao Painel
             </Link>
@@ -176,7 +184,7 @@ const CreateItem = () => {
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 pt-28 min-h-screen bg-[#0a0a0a]">
-      {/* Breadcrumb / Back button */}
+      {/* Breadcrumb */}
       <Link 
         to="/dashboard" 
         className="inline-flex items-center gap-2 text-gray-400 hover:text-[#A69076] transition-colors mb-8 font-sans uppercase tracking-widest text-xs"
@@ -187,12 +195,12 @@ const CreateItem = () => {
       <div className="mb-10 border-b border-[#1e1e1e] pb-6 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <span className="text-[10px] uppercase tracking-[0.25em] text-[#A69076] font-sans block mb-1">
-            Curadoria & Registro
+            Curadoria & Dossiê
           </span>
-          <h1 className="text-3xl md:text-5xl font-serif text-white">Nova Peça no Acervo</h1>
+          <h1 className="text-3xl md:text-5xl font-serif text-white">Submissão de Peça</h1>
         </div>
         <p className="text-gray-500 font-sans text-xs max-w-sm">
-          Cadastre as informações da peça para emissão automática do Passaporte Digital imutável.
+          Envie os dados da sua peça para análise pericial. O Passaporte Digital é emitido exclusivamente após avaliação de perito credenciado.
         </p>
       </div>
 
@@ -200,14 +208,14 @@ const CreateItem = () => {
         
         {/* Card 1: Informações Básicas */}
         <div className="bg-[#111] border border-[#1e1e1e] p-6 md:p-8 space-y-6 shadow-xl">
-          <div className="flex items-center gap-2 border-b border-[#1e1e1e] pb-4">
-            <Sparkles className="w-4 h-4 text-[#A69076]" />
-            <h3 className="text-white font-serif text-lg">Informações Principais</h3>
+          <div className="border-b border-[#1e1e1e] pb-4">
+            <h3 className="text-white font-serif text-lg">Informações Principais da Peça</h3>
+            <p className="text-gray-500 font-sans text-xs mt-1">Identificação inicial do objeto para abertura do processo de curadoria.</p>
           </div>
           
           <div>
             <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">
-              Nome da Peça *
+              Nome ou Título da Peça *
             </label>
             <input 
               type="text" 
@@ -241,10 +249,10 @@ const CreateItem = () => {
               </select>
             </div>
 
-            {/* Valor pretendido sem setas de rolagem e com formatação elegante */}
+            {/* Valor estimado sem setas */}
             <div>
               <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">
-                Valor Estimado (R$) *
+                Expectativa de Avaliação (R$) *
               </label>
               <div className="relative">
                 <span className="absolute left-4 top-3.5 text-gray-500 font-sans text-sm pointer-events-none select-none">
@@ -274,17 +282,17 @@ const CreateItem = () => {
               value={formData.description}
               onChange={handleChange}
               className="w-full bg-[#0a0a0a] border border-[#2a2a2a] p-4 text-white focus:outline-none focus:border-[#A69076] transition-colors font-sans text-sm placeholder:text-gray-600 leading-relaxed"
-              placeholder="Descreva as características técnicas, materiais, dimensões e particularidades que valorizam o item..."
+              placeholder="Descreva as características conhecidas, histórico com o proprietário atual e particularidades relevantes..."
             />
           </div>
         </div>
 
-        {/* Card 2: Fotografia / Mídia com Upload Local ou URL */}
+        {/* Card 2: Fotografia / Mídia */}
         <div className="bg-[#111] border border-[#1e1e1e] p-6 md:p-8 space-y-6 shadow-xl">
           <div className="flex items-center justify-between border-b border-[#1e1e1e] pb-4">
-            <div className="flex items-center gap-2">
-              <ImageIcon className="w-4 h-4 text-[#A69076]" />
-              <h3 className="text-white font-serif text-lg">Fotografia Principal da Peça</h3>
+            <div>
+              <h3 className="text-white font-serif text-lg">Registros Fotográficos</h3>
+              <p className="text-gray-500 font-sans text-xs mt-1">Fotos nítidas auxiliam a triagem da curadoria.</p>
             </div>
 
             {/* Mode Toggle Buttons */}
@@ -309,7 +317,7 @@ const CreateItem = () => {
                     : 'text-gray-400 hover:text-white'
                 }`}
               >
-                <Link2 className="w-3 h-3" /> URL Web
+                <Link2 className="w-3 h-3" /> Link Web
               </button>
             </div>
           </div>
@@ -335,10 +343,10 @@ const CreateItem = () => {
                     <Upload className="w-6 h-6" />
                   </div>
                   <p className="text-sm font-sans text-gray-200 mb-1">
-                    Clique para selecionar uma imagem do seu computador
+                    Selecione a foto principal do item no seu computador
                   </p>
                   <p className="text-xs font-sans text-gray-500">
-                    Formatos suportados: PNG, JPG, JPEG, WEBP
+                    Formatos: PNG, JPG, JPEG, WEBP (fotos adicionais podem ser solicitadas na perícia)
                   </p>
                 </label>
               ) : null}
@@ -349,7 +357,7 @@ const CreateItem = () => {
           {imageMode === 'url' && (
             <div>
               <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">
-                Endereço Web da Fotografia
+                Link Público da Imagem
               </label>
               <div className="relative">
                 <input 
@@ -357,7 +365,7 @@ const CreateItem = () => {
                   value={formData.image.startsWith('data:') ? '' : formData.image}
                   onChange={handleUrlChange}
                   className="w-full bg-[#0a0a0a] border border-[#2a2a2a] pl-10 pr-4 py-3.5 text-white focus:outline-none focus:border-[#A69076] transition-colors font-sans text-sm placeholder:text-gray-600"
-                  placeholder="https://exemplo.com/foto-alta-resolucao.jpg"
+                  placeholder="https://exemplo.com/foto-da-peca.jpg"
                 />
                 <Link2 className="w-4 h-4 text-gray-500 absolute left-3.5 top-4" />
               </div>
@@ -377,9 +385,9 @@ const CreateItem = () => {
                   />
                 </div>
                 <div>
-                  <p className="text-xs font-sans text-gray-300 font-medium">Fotografia pronta para o dossiê</p>
+                  <p className="text-xs font-sans text-gray-300 font-medium">Registro visual anexado</p>
                   <p className="text-[10px] font-sans text-emerald-400 uppercase tracking-widest mt-0.5">
-                    Imagem carregada com sucesso
+                    Pronto para conferência da curadoria
                   </p>
                 </div>
               </div>
@@ -396,50 +404,38 @@ const CreateItem = () => {
           )}
         </div>
 
-        {/* Card 3: Dados de Procedência e Perícia (DRE v2.0 - Passaporte) */}
+        {/* Card 3: Declaração de Procedência pelo Solicitante */}
         <div className="bg-[#111] border border-[#1e1e1e] p-6 md:p-8 space-y-6 shadow-xl">
-          <div className="flex items-center gap-2 border-b border-[#1e1e1e] pb-4">
-            <ShieldCheck className="w-4 h-4 text-[#A69076]" />
-            <h3 className="text-white font-serif text-lg">Procedência e Estado de Conservação</h3>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">
-                Estado de Conservação
-              </label>
-              <select
-                name="conservationState"
-                value={formData.conservationState}
-                onChange={handleChange}
-                className="w-full bg-[#0a0a0a] border border-[#2a2a2a] px-4 py-3.5 text-white focus:outline-none focus:border-[#A69076] transition-colors font-sans text-sm cursor-pointer"
-              >
-                <option value="Excelente">Excelente (5/5)</option>
-                <option value="Como Novo">Como Novo (5/5)</option>
-                <option value="Muito Bom">Muito Bom (4/5)</option>
-                <option value="Bom">Bom (3/5)</option>
-                <option value="Regular">Regular (2/5)</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">
-                Perito / Avaliador Responsável
-              </label>
-              <input 
-                type="text"
-                name="expertName"
-                value={formData.expertName}
-                onChange={handleChange}
-                className="w-full bg-[#0a0a0a] border border-[#2a2a2a] px-4 py-3.5 text-white focus:outline-none focus:border-[#A69076] transition-colors font-sans text-sm placeholder:text-gray-600"
-                placeholder="Ex: Dr. Hans Werner — Swiss Expertise"
-              />
-            </div>
+          <div className="border-b border-[#1e1e1e] pb-4">
+            <h3 className="text-white font-serif text-lg">Declaração de Procedência do Solicitante</h3>
+            <p className="text-gray-500 font-sans text-xs mt-1">
+              Informe a origem conhecida da peça. O laudo técnico e as notas de conservação oficiais serão determinados pelo perito designado pela Lastro.
+            </p>
           </div>
 
           <div>
             <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">
-              Histórico de Procedência
+              Estado Aparente Informado pelo Solicitante
+            </label>
+            <select
+              name="ownerConservationNotes"
+              value={formData.ownerConservationNotes}
+              onChange={handleChange}
+              className="w-full bg-[#0a0a0a] border border-[#2a2a2a] px-4 py-3.5 text-white focus:outline-none focus:border-[#A69076] transition-colors font-sans text-sm cursor-pointer"
+            >
+              <option value="Excelente">Aparentemente Excelente (sem desgastes visíveis)</option>
+              <option value="Muito Bom">Muito Bom (sinais leves de uso)</option>
+              <option value="Bom">Bom (necessita de limpeza ou revisão estética)</option>
+              <option value="Regular">Regular (requer eventual restauro pericial)</option>
+            </select>
+            <p className="text-[11px] text-gray-600 font-sans mt-2">
+              * Nota: A escala oficial e a nota técnica final (1 a 5) são atribuição exclusiva do laudo pericial.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">
+              Origem e Documentos Disponíveis
             </label>
             <input 
               type="text"
@@ -447,8 +443,16 @@ const CreateItem = () => {
               value={formData.provenance}
               onChange={handleChange}
               className="w-full bg-[#0a0a0a] border border-[#2a2a2a] px-4 py-3.5 text-white focus:outline-none focus:border-[#A69076] transition-colors font-sans text-sm placeholder:text-gray-600"
-              placeholder="Ex: Adquirido diretamente na boutique oficial. Único proprietário com nota fiscal."
+              placeholder="Ex: Adquirido em galeria/boutique oficial em 2022. Possui certificado e recibo original."
             />
+          </div>
+
+          {/* Aviso sobre processo de curadoria */}
+          <div className="border border-[#2a2a2a] bg-[#0d0d0d] p-4 flex items-start gap-3">
+            <ShieldAlert className="w-5 h-5 text-[#A69076] shrink-0 mt-0.5" />
+            <div className="font-sans text-xs text-gray-400 leading-relaxed">
+              <strong className="text-gray-200">Garantia do Padrão Lastro:</strong> O Passaporte Digital só é emitido após conferência física e documental realizada por perito credenciado e homologação da curadoria.
+            </div>
           </div>
         </div>
 
@@ -463,9 +467,10 @@ const CreateItem = () => {
           <button 
             type="submit"
             disabled={loading}
-            className="w-full sm:w-auto bg-[#A69076] text-black px-12 py-4 font-sans uppercase tracking-widest text-xs font-semibold hover:bg-[#b8a287] transition-colors disabled:opacity-50 cursor-pointer shadow-lg"
+            className="w-full sm:w-auto bg-[#A69076] text-black px-12 py-4 font-sans uppercase tracking-widest text-xs font-semibold hover:bg-[#b8a287] transition-colors disabled:opacity-50 cursor-pointer shadow-lg flex items-center justify-center gap-2"
           >
-            {loading ? 'Emitindo Passaporte...' : 'Cadastrar Peça & Emitir Passaporte'}
+            <SendHorizontal className="w-4 h-4" />
+            {loading ? 'Enviando Dossiê...' : 'Submeter Peça à Curadoria Lastro'}
           </button>
         </div>
       </form>
