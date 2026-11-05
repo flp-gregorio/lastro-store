@@ -11,24 +11,14 @@ const {
   ensureFirstVisitAttribution,
   logEvent
 } = require('../utils/eventLogger');
-const {
-  isMockActive,
-  findMockItem,
-  findMockItemByIdOrPassport,
-  updateMockItem
-} = require('../mocks/data');
 
 /**
- * Busca uma peça pelo identificador público não enumerável (`share_token` ou `passport_id`)
+ * Busca uma peça no Supabase pelo identificador público não enumerável (`share_token` ou `passport_id`)
  */
 const findPecaByPublicIdentifier = async (identifier) => {
   // RNF11: Bloqueia tentativa de enumeração por ID numérico sequencial
   if (/^\d+$/.test(identifier)) {
     return { item: null, blockedSequential: true };
-  }
-
-  if (isMockActive(supabase)) {
-    return findMockItem(identifier);
   }
 
   // Tenta buscar pelo `share_token` primeiro, depois pelo `passport_id`
@@ -69,8 +59,7 @@ router.get('/:identifier', async (req, res) => {
   const anonymousId = viewerUserId ? incomingAnonId : incomingAnonId || generateAnonymousId();
 
   try {
-    const mockMode = isMockActive(supabase);
-    if (!supabase && !mockMode) {
+    if (!supabase) {
       return res.status(500).json({ message: 'Supabase não está configurado no .env' });
     }
 
@@ -154,25 +143,17 @@ router.post('/:id/compartilhar', validate(shareLinkSchema), async (req, res) => 
   const { origin, regenerate, userId } = req.body;
 
   try {
-    const mockMode = isMockActive(supabase);
-    if (!supabase && !mockMode) {
+    if (!supabase) {
       return res.status(500).json({ message: 'Supabase não está configurado no .env' });
     }
 
-    let item = null;
+    const isNumericId = /^\d+$/.test(id);
+    const query = supabase.from('pecas').select('*');
+    const { data: item, error: findError } = await (isNumericId
+      ? query.eq('id', Number(id)).maybeSingle()
+      : query.eq('passport_id', id).maybeSingle());
 
-    if (mockMode) {
-      item = findMockItemByIdOrPassport(id);
-    } else {
-      const isNumericId = /^\d+$/.test(id);
-      const query = supabase.from('pecas').select('*');
-      const { data, error: findError } = await (isNumericId
-        ? query.eq('id', Number(id)).maybeSingle()
-        : query.eq('passport_id', id).maybeSingle());
-      if (!findError) item = data;
-    }
-
-    if (!item) {
+    if (findError || !item) {
       return res.status(404).json({ message: 'Peça/Passaporte não encontrado para compartilhamento' });
     }
 
@@ -182,36 +163,27 @@ router.post('/:id/compartilhar', validate(shareLinkSchema), async (req, res) => 
 
     let updatedItem = item;
 
-    if (mockMode) {
-      updatedItem = updateMockItem(item.id, {
+    const { data: savedItem, error: updateErr } = await supabase
+      .from('pecas')
+      .update({
         share_token: nextShareToken,
         share_status: 'active',
         share_revoked_at: null,
         is_published: true
-      });
-    } else {
-      const { data: savedItem, error: updateErr } = await supabase
-        .from('pecas')
-        .update({
-          share_token: nextShareToken,
-          share_status: 'active',
-          share_revoked_at: null,
-          is_published: true
-        })
-        .eq('id', item.id)
-        .select()
-        .maybeSingle();
+      })
+      .eq('id', item.id)
+      .select()
+      .maybeSingle();
 
-      if (!updateErr && savedItem) {
-        updatedItem = savedItem;
-      } else {
-        updatedItem = {
-          ...item,
-          share_token: nextShareToken,
-          share_status: 'active',
-          share_revoked_at: null
-        };
-      }
+    if (!updateErr && savedItem) {
+      updatedItem = savedItem;
+    } else {
+      updatedItem = {
+        ...item,
+        share_token: nextShareToken,
+        share_status: 'active',
+        share_revoked_at: null
+      };
     }
 
     const frontendBaseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
@@ -263,49 +235,34 @@ router.post('/:id/revogar', async (req, res) => {
   const revokedAt = new Date().toISOString();
 
   try {
-    const mockMode = isMockActive(supabase);
-    if (!supabase && !mockMode) {
+    if (!supabase) {
       return res.status(500).json({ message: 'Supabase não está configurado no .env' });
     }
 
-    let item = null;
+    const isNumericId = /^\d+$/.test(id);
+    const query = supabase.from('pecas').select('*');
+    const { data: item, error: findError } = await (isNumericId
+      ? query.eq('id', Number(id)).maybeSingle()
+      : query.eq('passport_id', id).maybeSingle());
 
-    if (mockMode) {
-      item = findMockItemByIdOrPassport(id);
-    } else {
-      const isNumericId = /^\d+$/.test(id);
-      const query = supabase.from('pecas').select('*');
-      const { data, error: findError } = await (isNumericId
-        ? query.eq('id', Number(id)).maybeSingle()
-        : query.eq('passport_id', id).maybeSingle());
-      if (!findError) item = data;
-    }
-
-    if (!item) {
+    if (findError || !item) {
       return res.status(404).json({ message: 'Peça/Passaporte não encontrado para revogação' });
     }
 
-    if (mockMode) {
-      updateMockItem(item.id, {
+    const { error: updateErr } = await supabase
+      .from('pecas')
+      .update({
         share_status: 'revoked',
         share_revoked_at: revokedAt
-      });
-    } else {
-      const { error: updateErr } = await supabase
-        .from('pecas')
-        .update({
-          share_status: 'revoked',
-          share_revoked_at: revokedAt
-        })
-        .eq('id', item.id);
+      })
+      .eq('id', item.id);
 
-      if (updateErr) {
-        console.warn('[Supabase POST /passaportes/:id/revogar Warning]:', updateErr.message);
-        return res.status(400).json({
-          message: 'Não foi possível revogar o link no banco. Verifique se a migração SQL P0 foi executada.',
-          error: updateErr.message
-        });
-      }
+    if (updateErr) {
+      console.warn('[Supabase POST /passaportes/:id/revogar Warning]:', updateErr.message);
+      return res.status(400).json({
+        message: 'Não foi possível revogar o link no banco. Verifique se a migração SQL P0 foi executada.',
+        error: updateErr.message
+      });
     }
 
     return res.json({
