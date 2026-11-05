@@ -1,12 +1,13 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { 
-  ArrowLeft, 
-  Upload, 
-  CheckCircle2, 
-  Link2, 
-  Image as ImageIcon, 
-  X, 
+import { apiUrl } from '../api';
+import {
+  ArrowLeft,
+  Upload,
+  CheckCircle2,
+  Link2,
+  Image as ImageIcon,
+  X,
   FileCheck2,
   Clock,
   ShieldAlert,
@@ -35,7 +36,7 @@ const CreateItem = () => {
   const [imageMode, setImageMode] = useState('upload'); // 'upload' | 'url'
   const [imagePreview, setImagePreview] = useState('');
   const [attachedDocs, setAttachedDocs] = useState([]); // Array de { name, size, type, data }
-  
+
   const [formData, setFormData] = useState({
     name: '',
     category: '',
@@ -168,7 +169,7 @@ const CreateItem = () => {
     };
 
     try {
-      const response = await fetch('/api/pecas', {
+      const response = await fetch(apiUrl('/api/pecas'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -202,7 +203,7 @@ const CreateItem = () => {
             </span>
             <h2 className="text-2xl md:text-3xl font-serif text-white mb-3">Submetido à Curadoria</h2>
             <p className="text-gray-400 font-sans text-xs leading-relaxed">
-              Sua peça e os documentos anexados foram recebidos e encaminhados para o corpo de <strong>peritos credenciados Lastro</strong>. 
+              Sua peça e os documentos anexados foram recebidos e encaminhados para o corpo de <strong>peritos credenciados Lastro</strong>.
               Após análise física e documental, o laudo pericial será concluído e o Passaporte Digital emitido.
             </p>
           </div>
@@ -241,8 +242,8 @@ const CreateItem = () => {
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 pt-28 min-h-screen bg-[#0a0a0a]">
       {/* Breadcrumb */}
-      <Link 
-        to="/dashboard" 
+      <Link
+        to="/dashboard"
         className="inline-flex items-center gap-2 text-gray-400 hover:text-[#A69076] transition-colors mb-8 font-sans uppercase tracking-widest text-xs"
       >
         <ArrowLeft className="w-4 h-4" /> Voltar ao Painel
@@ -261,20 +262,20 @@ const CreateItem = () => {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-10">
-        
+
         {/* Card 1: Informações Básicas */}
         <div className="bg-[#111] border border-[#1e1e1e] p-6 md:p-8 space-y-6 shadow-xl">
           <div className="border-b border-[#1e1e1e] pb-4">
             <h3 className="text-white font-serif text-lg">Informações Principais da Peça</h3>
             <p className="text-gray-500 font-sans text-xs mt-1">Identificação inicial do objeto para abertura do processo de curadoria.</p>
           </div>
-          
+
           <div>
             <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">
               Nome ou Título da Peça *
             </label>
-            <input 
-              type="text" 
+            <input
+              type="text"
               name="name"
               required
               value={formData.name}
@@ -289,7 +290,7 @@ const CreateItem = () => {
               <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">
                 Categoria *
               </label>
-              <select 
+              <select
                 name="category"
                 required
                 value={formData.category}
@@ -314,8 +315,8 @@ const CreateItem = () => {
                 <span className="absolute left-4 top-3.5 text-gray-500 font-sans text-sm pointer-events-none select-none">
                   R$
                 </span>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   inputMode="numeric"
                   name="price"
                   required
@@ -332,7 +333,7 @@ const CreateItem = () => {
             <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">
               Descrição e Detalhes da Obra
             </label>
-            <textarea 
+            <textarea
               name="description"
               rows="4"
               value={formData.description}
@@ -356,22 +357,20 @@ const CreateItem = () => {
               <button
                 type="button"
                 onClick={() => setImageMode('upload')}
-                className={`px-3 py-1.5 text-[10px] uppercase tracking-wider font-sans transition-colors cursor-pointer flex items-center gap-1.5 ${
-                  imageMode === 'upload' 
-                    ? 'bg-[#A69076] text-black font-semibold' 
+                className={`px-3 py-1.5 text-[10px] uppercase tracking-wider font-sans transition-colors cursor-pointer flex items-center gap-1.5 ${imageMode === 'upload'
+                    ? 'bg-[#A69076] text-black font-semibold'
                     : 'text-gray-400 hover:text-white'
-                }`}
+                  }`}
               >
                 <Upload className="w-3 h-3" /> Arquivo Local
               </button>
               <button
                 type="button"
                 onClick={() => setImageMode('url')}
-                className={`px-3 py-1.5 text-[10px] uppercase tracking-wider font-sans transition-colors cursor-pointer flex items-center gap-1.5 ${
-                  imageMode === 'url' 
-                    ? 'bg-[#A69076] text-black font-semibold' 
+                className={`px-3 py-1.5 text-[10px] uppercase tracking-wider font-sans transition-colors cursor-pointer flex items-center gap-1.5 ${imageMode === 'url'
+                    ? 'bg-[#A69076] text-black font-semibold'
                     : 'text-gray-400 hover:text-white'
-                }`}
+                  }`}
               >
                 <Link2 className="w-3 h-3" /> Link Web
               </button>
@@ -381,17 +380,17 @@ const CreateItem = () => {
           {/* Upload Mode */}
           {imageMode === 'upload' && (
             <div>
-              <input 
+              <input
                 ref={fileInputRef}
-                type="file" 
+                type="file"
                 accept="image/*"
                 onChange={handleFileUpload}
                 className="hidden"
                 id="file-upload"
               />
-              
+
               {!imagePreview ? (
-                <label 
+                <label
                   htmlFor="file-upload"
                   className="border-2 border-dashed border-[#2a2a2a] hover:border-[#A69076] transition-colors p-8 flex flex-col items-center justify-center cursor-pointer bg-[#0a0a0a]/50 group"
                 >
@@ -416,8 +415,8 @@ const CreateItem = () => {
                 Link Público da Imagem
               </label>
               <div className="relative">
-                <input 
-                  type="url" 
+                <input
+                  type="url"
                   value={formData.image.startsWith('data:') ? '' : formData.image}
                   onChange={handleUrlChange}
                   className="w-full bg-[#0a0a0a] border border-[#2a2a2a] pl-10 pr-4 py-3.5 text-white focus:outline-none focus:border-[#A69076] transition-colors font-sans text-sm placeholder:text-gray-600"
@@ -433,9 +432,9 @@ const CreateItem = () => {
             <div className="mt-4 border border-[#2a2a2a] p-3 bg-[#0a0a0a] flex items-center justify-between">
               <div className="flex items-center gap-4 overflow-hidden">
                 <div className="w-16 h-16 bg-[#111] overflow-hidden shrink-0 border border-[#2a2a2a]">
-                  <img 
-                    src={imagePreview} 
-                    alt="Preview" 
+                  <img
+                    src={imagePreview}
+                    alt="Preview"
                     className="w-full h-full object-cover"
                     onError={(e) => { e.target.style.display = 'none'; }}
                   />
@@ -447,7 +446,7 @@ const CreateItem = () => {
                   </p>
                 </div>
               </div>
-              
+
               <button
                 type="button"
                 onClick={clearImage}
@@ -473,9 +472,9 @@ const CreateItem = () => {
           </div>
 
           <div>
-            <input 
+            <input
               ref={docInputRef}
-              type="file" 
+              type="file"
               accept=".pdf,application/pdf,image/*"
               multiple
               onChange={handleDocUpload}
@@ -483,7 +482,7 @@ const CreateItem = () => {
               id="doc-upload"
             />
 
-            <label 
+            <label
               htmlFor="doc-upload"
               className="border-2 border-dashed border-[#2a2a2a] hover:border-[#A69076] transition-colors p-6 flex flex-col items-center justify-center cursor-pointer bg-[#0a0a0a]/50 group"
             >
@@ -565,7 +564,7 @@ const CreateItem = () => {
             <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">
               Origem e Documentos Disponíveis
             </label>
-            <input 
+            <input
               type="text"
               name="provenance"
               value={formData.provenance}
@@ -586,13 +585,13 @@ const CreateItem = () => {
 
         {/* Submit Actions */}
         <div className="flex flex-col sm:flex-row justify-end items-center gap-4 pt-4">
-          <Link 
-            to="/dashboard" 
+          <Link
+            to="/dashboard"
             className="w-full sm:w-auto text-center px-8 py-4 font-sans uppercase tracking-widest text-xs font-medium text-gray-400 hover:text-white transition-colors"
           >
             Cancelar
           </Link>
-          <button 
+          <button
             type="submit"
             disabled={loading}
             className="w-full sm:w-auto bg-[#A69076] text-black px-12 py-4 font-sans uppercase tracking-widest text-xs font-semibold hover:bg-[#b8a287] transition-colors disabled:opacity-50 cursor-pointer shadow-lg flex items-center justify-center gap-2"

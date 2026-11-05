@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { Search, Filter, X, ArrowLeft } from 'lucide-react';
 import ItemCard from '../components/ItemCard';
+import { apiUrl } from '../api';
 
 const CATEGORIES = [
   'TODOS',
@@ -40,7 +41,7 @@ const Catalog = () => {
   useEffect(() => {
     const fetchItems = async () => {
       try {
-        const response = await fetch('/api/pecas');
+        const response = await fetch(apiUrl('/api/pecas'));
         const data = await response.json();
         setItems(Array.isArray(data) ? data : []);
       } catch (error) {

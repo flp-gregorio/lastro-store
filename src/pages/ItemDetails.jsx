@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ShieldCheck, ArrowLeft, Info, FileText } from 'lucide-react';
+import apiUrl from '../apiConfig';
 
 const ItemDetails = () => {
   const { id } = useParams();
@@ -10,7 +11,7 @@ const ItemDetails = () => {
   useEffect(() => {
     const fetchItem = async () => {
       try {
-        const response = await fetch(`/api/pecas/${id}`);
+        const response = await fetch(apiUrl(`/api/pecas/${id}`));
         if (!response.ok) throw new Error('Not found');
         const data = await response.json();
         setItem(data);
@@ -42,9 +43,9 @@ const ItemDetails = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-24">
         {/* Imagem */}
         <div className="relative aspect-square lg:aspect-[4/5] bg-[#111]">
-          <img 
-            src={item.image} 
-            alt={item.name} 
+          <img
+            src={item.image}
+            alt={item.name}
             className="object-cover w-full h-full opacity-90"
           />
         </div>
@@ -69,7 +70,7 @@ const ItemDetails = () => {
               <ShieldCheck className="w-6 h-6 text-emerald-400" />
               <h3 className="text-xl font-serif text-white">Passaporte Digital</h3>
             </div>
-            
+
             <div className="space-y-4 font-sans text-sm">
               <div className="flex justify-between border-b border-gray-800 pb-2">
                 <span className="text-gray-500">ID do Passaporte</span>
@@ -88,7 +89,7 @@ const ItemDetails = () => {
                 <span className="text-gray-200">{item.expertDate}</span>
               </div>
             </div>
-            
+
             <Link
               to={`/passaporte/${item.shareToken || item.passportId}?origem=link_compartilhado`}
               className="mt-6 w-full flex items-center justify-center gap-2 bg-white text-black py-3 font-sans uppercase tracking-widest text-xs font-medium hover:bg-gray-200 transition-colors"

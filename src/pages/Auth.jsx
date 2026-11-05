@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { apiUrl } from '../api';
+
 
 const Auth = () => {
   const [isRegister, setIsRegister] = useState(false);
@@ -21,7 +23,7 @@ const Auth = () => {
     const payload = isRegister ? { email, password, name } : { email, password };
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await fetch(apiUrl(endpoint), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
