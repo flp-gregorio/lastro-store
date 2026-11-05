@@ -8,6 +8,6 @@ const API_BASE_URL = (
     : `https://${configuredUrl}`
 ).replace(/\/+$/, '');
 
-export default function apiUrl(path) {
+export const apiUrl = (path) => {
   return `${API_BASE_URL}${path.startsWith('/') ? '' : '/'}${path}`;
-}
+};
