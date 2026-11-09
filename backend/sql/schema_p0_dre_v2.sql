@@ -149,3 +149,125 @@ CREATE TABLE IF NOT EXISTS public.atribuicoes_origem (
 CREATE INDEX IF NOT EXISTS idx_atribuicoes_origem_anonymous_id ON public.atribuicoes_origem (anonymous_id);
 CREATE INDEX IF NOT EXISTS idx_atribuicoes_origem_user_id ON public.atribuicoes_origem (user_id);
 
+-- ============================================================================
+-- 5. Tabelas da Seção 3.3 · Hábito (investimento, alertas e lembretes)
+-- RF06, RF09, RF10, RF14, RF16, RF17, RF29, RF07
+-- ============================================================================
+
+-- 5.1 Tabela `listas_desejos` · Listas de desejos do usuário (RF06)
+CREATE TABLE IF NOT EXISTS public.listas_desejos (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id TEXT NOT NULL,
+  nome TEXT NOT NULL DEFAULT 'Minhas peças salvas',
+  tipo TEXT NOT NULL DEFAULT 'simples' CHECK (tipo IN ('simples', 'curadoria')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_listas_desejos_user_id ON public.listas_desejos (user_id);
+
+-- 5.2 Tabela `itens_lista` · Peças salvas em listas de desejos (RF06)
+CREATE TABLE IF NOT EXISTS public.itens_lista (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  lista_id UUID REFERENCES public.listas_desejos(id) ON DELETE CASCADE,
+  peca_id BIGINT REFERENCES public.pecas(id) ON DELETE CASCADE,
+  passport_id TEXT,
+  added_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (lista_id, peca_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_itens_lista_lista_id ON public.itens_lista (lista_id);
+CREATE INDEX IF NOT EXISTS idx_itens_lista_peca_id ON public.itens_lista (peca_id);
+
+-- 5.3 Tabela `lembretes_conservacao` · Lembretes de conservação (RF09)
+CREATE TABLE IF NOT EXISTS public.lembretes_conservacao (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  peca_id BIGINT REFERENCES public.pecas(id) ON DELETE CASCADE,
+  owner_id TEXT NOT NULL,
+  tipo TEXT NOT NULL DEFAULT 'conservacao',
+  frequencia TEXT NOT NULL DEFAULT 'semestral' CHECK (frequencia IN ('mensal', 'trimestral', 'semestral', 'anual')),
+  proxima_notificacao TIMESTAMPTZ,
+  ativo BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_lembretes_peca_id ON public.lembretes_conservacao (peca_id);
+CREATE INDEX IF NOT EXISTS idx_lembretes_owner_id ON public.lembretes_conservacao (owner_id);
+CREATE INDEX IF NOT EXISTS idx_lembretes_ativo_proxima ON public.lembretes_conservacao (ativo, proxima_notificacao);
+
+-- 5.4 Tabela `preferencias_notificacao` · Preferências de alertas e lembretes (RF14)
+CREATE TABLE IF NOT EXISTS public.preferencias_notificacao (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id TEXT UNIQUE NOT NULL,
+  alertas_ativos BOOLEAN NOT NULL DEFAULT false,
+  lembretes_ativos BOOLEAN NOT NULL DEFAULT false,
+  notificar_pecas_compativeis BOOLEAN NOT NULL DEFAULT false,
+  notificar_laudo_concluido BOOLEAN NOT NULL DEFAULT false,
+  frequencia_lembrete TEXT NOT NULL DEFAULT 'semestral' CHECK (frequencia_lembrete IN ('mensal', 'trimestral', 'semestral', 'anual')),
+  canal_email BOOLEAN NOT NULL DEFAULT false,
+  canal_push BOOLEAN NOT NULL DEFAULT true,
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+  atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_preferencias_user_id ON public.preferencias_notificacao (user_id);
+
+-- 5.5 Tabela `avaliacoes_contraparte` · Avaliação de contraparte (RF07)
+CREATE TABLE IF NOT EXISTS public.avaliacoes_contraparte (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  avaliador_id TEXT NOT NULL,
+  avaliado_id TEXT NOT NULL,
+  peca_id BIGINT REFERENCES public.pecas(id) ON DELETE SET NULL,
+  passport_id TEXT,
+  nota INTEGER NOT NULL CHECK (nota >= 1 AND nota <= 5),
+  comentario TEXT,
+  interacao_tipo TEXT NOT NULL CHECK (interacao_tipo IN ('consulta', 'proposta', 'negociacao', 'transferencia')),
+  interacao_id TEXT,
+  visibilidade TEXT NOT NULL DEFAULT 'publica' CHECK (visibilidade IN ('publica', 'privada')),
+  moderado BOOLEAN NOT NULL DEFAULT false,
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+  atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_avaliacoes_avaliador ON public.avaliacoes_contraparte (avaliador_id);
+CREATE INDEX IF NOT EXISTS idx_avaliacoes_avaliado ON public.avaliacoes_contraparte (avaliado_id);
+CREATE INDEX IF NOT EXISTS idx_avaliacoes_peca ON public.avaliacoes_contraparte (peca_id);
+
+-- 5.6 Tabela `transferencias_passaporte` · Transferência e revenda de passaporte (RF17)
+CREATE TABLE IF NOT EXISTS public.transferencias_passaporte (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  peca_id BIGINT REFERENCES public.pecas(id) ON DELETE CASCADE,
+  passport_id TEXT NOT NULL,
+  de_usuario_id TEXT NOT NULL,
+  para_usuario_id TEXT NOT NULL,
+  tipo_transferencia TEXT NOT NULL CHECK (tipo_transferencia IN ('venda', 'revenda', 'doacao', 'heranca')),
+  valor_transacao NUMERIC(12, 2),
+  data_transferencia TIMESTAMPTZ NOT NULL DEFAULT now(),
+  historico_preservado BOOLEAN NOT NULL DEFAULT true,
+  observacoes TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_transferencias_peca ON public.transferencias_passaporte (peca_id);
+CREATE INDEX IF NOT EXISTS idx_transferencias_passport ON public.transferencias_passaporte (passport_id);
+CREATE INDEX IF NOT EXISTS idx_transferencias_de_usuario ON public.transferencias_passaporte (de_usuario_id);
+CREATE INDEX IF NOT EXISTS idx_transferencias_para_usuario ON public.transferencias_passaporte (para_usuario_id);
+
+-- 5.7 Tabela `notificacoes` · Notificações de alertas e lembretes (RF10, RF16, RF29)
+CREATE TABLE IF NOT EXISTS public.notificacoes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id TEXT NOT NULL,
+  tipo TEXT NOT NULL CHECK (tipo IN ('primeiro_investimento', 'peca_compatível', 'laudo_concluido', 'lembrete_conservacao', 'alerta_generico')),
+  titulo TEXT NOT NULL,
+  mensagem TEXT NOT NULL,
+  peca_id BIGINT REFERENCES public.pecas(id) ON DELETE SET NULL,
+  passport_id TEXT,
+  lida BOOLEAN NOT NULL DEFAULT false,
+  acao_url TEXT,
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_notificacoes_user_id ON public.notificacoes (user_id);
+CREATE INDEX IF NOT EXISTS idx_notificacoes_user_lida ON public.notificacoes (user_id, lida);
+CREATE INDEX IF NOT EXISTS idx_notificacoes_tipo ON public.notificacoes (tipo);
+

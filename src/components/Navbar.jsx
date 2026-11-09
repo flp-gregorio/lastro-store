@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, X, User } from 'lucide-react';
+import { Search, X, User, Heart, Clock, Bell } from 'lucide-react';
 
 const CATEGORIES = [
   'ARTE',
@@ -75,6 +75,33 @@ const Navbar = () => {
               title="Painel"
             >
               <User className="h-4 w-4 md:h-5 md:w-5" />
+            </Link>
+
+            {/* Hábito - Lista de Desejos (RF06) */}
+            <Link
+              to="/wishlist"
+              className="text-white hover:text-[#A69076] hidden md:block transition-colors duration-300 p-1"
+              title="Lista de Desejos"
+            >
+              <Heart className="h-4 w-4 md:h-5 md:w-5" />
+            </Link>
+
+            {/* Hábito - Lembretes (RF09) */}
+            <Link
+              to="/lembretes"
+              className="text-white hover:text-[#A69076] hidden md:block transition-colors duration-300 p-1"
+              title="Lembretes de Conservação"
+            >
+              <Clock className="h-4 w-4 md:h-5 md:w-5" />
+            </Link>
+
+            {/* Hábito - Notificações (RF14) */}
+            <Link
+              to="/notificacoes"
+              className="text-white hover:text-[#A69076] hidden md:block transition-colors duration-300 p-1"
+              title="Notificações"
+            >
+              <Bell className="h-4 w-4 md:h-5 md:w-5" />
             </Link>
 
             <Link

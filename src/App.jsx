@@ -9,6 +9,9 @@ import Landing from './pages/Landing';
 import Dashboard from './pages/Dashboard';
 import CreateItem from './pages/CreateItem';
 import Passaporte from './pages/Passaporte';
+import Wishlist from './pages/Wishlist';
+import Lembretes from './pages/Lembretes';
+import Notificacoes from './pages/Notificacoes';
 
 const App = () => {
   return (
@@ -25,6 +28,11 @@ const App = () => {
           <Route path="/dashboard/nova-peca" element={<CreateItem />} />
           {/* RF01, RF02, RF04 — Consulta pública do Passaporte Digital por link ou QR Code */}
           <Route path="/passaporte/:identifier" element={<Passaporte />} />
+
+          {/* Seção 3.3 · Hábito (investimento, alertas e lembretes) */}
+          <Route path="/wishlist" element={<Wishlist />} />              {/* RF06 */}
+          <Route path="/lembretes" element={<Lembretes />} />           {/* RF09 */}
+          <Route path="/notificacoes" element={<Notificacoes />} />     {/* RF14 */}
         </Routes>
       </main>
     </div>
