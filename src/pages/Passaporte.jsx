@@ -29,11 +29,6 @@ import { apiUrl } from '../api';
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-// In dev the Vite proxy forwards /api → http://localhost:3000/api (no CORS issues).
-// In production set VITE_API_URL to the full backend base URL.
-const API_BASE = import.meta.env.VITE_API_URL || '/api';
-
-// ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
 

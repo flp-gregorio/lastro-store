@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ShieldCheck, ArrowLeft, Info, FileText, Clock, CheckCircle2, Loader2 } from 'lucide-react';
+import { ShieldCheck, ArrowLeft, Info, FileText, Loader2 } from 'lucide-react';
 import { apiUrl } from '../api';
 
 const ItemDetails = () => {

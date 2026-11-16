@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Star, User, ArrowLeft, RefreshCw } from 'lucide-react';
 import { apiUrl } from '../api';
 
 const Avaliacoes = () => {
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
   const [avaliacoes, setAvaliacoes] = useState([]);
   const [estatisticas, setEstatisticas] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -26,12 +25,7 @@ const Avaliacoes = () => {
   const pecaIdParam = searchParams.get('pecaId') || '';
   const avaliadoIdParam = searchParams.get('avaliadoId') || '';
 
-  useEffect(() => {
-    if (pecaIdParam) setForm((prev) => ({ ...prev, pecaId: pecaIdParam }));
-    if (avaliadoIdParam) setForm((prev) => ({ ...prev, avaliadoId: avaliadoIdParam }));
-  }, [pecaIdParam, avaliadoIdParam]);
-
-  const loadAvaliacoes = async () => {
+  const loadAvaliacoes = useCallback(async () => {
     try {
       const params = new URLSearchParams();
       if (pecaIdParam) params.set('pecaId', pecaIdParam);
@@ -49,9 +43,10 @@ const Avaliacoes = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [pecaIdParam, avaliadoIdParam]);
 
-  const loadEstatisticas = async (id) => {
+  const loadEstatisticas = useCallback(async (id) => {
+    if (!id) return;
     try {
       const res = await fetch(apiUrl(`/api/avaliacoes/estatisticas/${id}`));
       if (res.ok) {
@@ -61,7 +56,16 @@ const Avaliacoes = () => {
     } catch (err) {
       console.error('Erro ao carregar estatísticas:', err);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (pecaIdParam) setForm((prev) => ({ ...prev, pecaId: pecaIdParam }));
+    if (avaliadoIdParam) setForm((prev) => ({ ...prev, avaliadoId: avaliadoIdParam }));
+    loadAvaliacoes();
+    if (avaliadoIdParam) {
+      loadEstatisticas(avaliadoIdParam);
+    }
+  }, [pecaIdParam, avaliadoIdParam, loadAvaliacoes, loadEstatisticas]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -112,15 +116,15 @@ const Avaliacoes = () => {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
+      <div className="flex justify-center items-center min-h-screen bg-[#0a0a0a]">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#A69076]" />
       </div>
     );
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 pt-24 min-h-screen">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 border-b border-gray-800 pb-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 pt-24 min-h-screen bg-[#0a0a0a] text-gray-200">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 border-b border-gray-800 pb-8 gap-4">
         <div>
           <h1 className="text-4xl font-serif text-white mb-2">Avaliações de Contraparte</h1>
           <p className="text-gray-400 font-sans text-sm">
@@ -130,24 +134,138 @@ const Avaliacoes = () => {
         <div className="flex gap-3">
           <button
             onClick={() => setShowForm(!showForm)}
-            className="bg-[#A69076] text-black px-6 py-3 font-sans uppercase tracking-widest text-xs font-semibold hover:bg-[#b8a287] transition-colors"
+            className="bg-[#A69076] text-black px-6 py-3 font-sans uppercase tracking-widest text-xs font-semibold hover:bg-[#b8a287] transition-colors rounded"
           >
             {showForm ? 'Cancelar' : 'Nova Avaliação'}
           </button>
-          <Link to="/dashboard" className="border border-gray-700 text-gray-300 px-4 py-2.5 hover:border-white transition-colors">
-            <ArrowLeft className="w-4 h-4" /> Voltar ao Dashboard
+          <Link
+            to="/dashboard"
+            className="border border-gray-700 text-gray-300 px-4 py-2.5 hover:border-white transition-colors text-xs font-sans uppercase tracking-wider flex items-center gap-2 rounded"
+          >
+            <ArrowLeft className="w-4 h-4" /> Voltar ao Painel
           </Link>
         </div>
       </div>
 
       {error && (
-        <div className="bg-red-900/40 border border-red-500/80 text-red-200 px-4 py-3 mb-6 font-sans text-xs text-center leading-relaxed">
+        <div className="bg-red-900/40 border border-red-500/80 text-red-200 px-4 py-3 mb-6 font-sans text-xs text-center leading-relaxed rounded">
           {error}
         </div>
       )}
       {success && (
-        <div className="bg-emerald-900/40 border border-emerald-500/80 text-emerald-200 px-4 py-3 mb-6 font-sans text-xs text-center leading-relaxed">
+        <div className="bg-emerald-900/40 border border-emerald-500/80 text-emerald-200 px-4 py-3 mb-6 font-sans text-xs text-center leading-relaxed rounded">
           {success}
+        </div>
+      )}
+
+      {/* Formulário de nova avaliação */}
+      {showForm && (
+        <div className="mb-8 bg-[#111] border border-gray-800 rounded-lg p-6">
+          <h2 className="text-2xl font-serif text-white mb-4">Registrar Avaliação</h2>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">
+                  Usuário Avaliado (ID)
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={form.avaliadoId}
+                  onChange={(e) => setForm({ ...form, avaliadoId: e.target.value })}
+                  className="w-full bg-[#0a0a0a] border border-gray-700 px-4 py-3 text-white focus:outline-none focus:border-[#A69076] transition-colors font-sans text-sm rounded"
+                  placeholder="ID do usuário avaliado"
+                />
+              </div>
+              <div>
+                <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">
+                  Nota (1 a 5)
+                </label>
+                <select
+                  required
+                  value={form.nota}
+                  onChange={(e) => setForm({ ...form, nota: Number(e.target.value) })}
+                  className="w-full bg-[#0a0a0a] border border-gray-700 px-4 py-3 text-white focus:outline-none focus:border-[#A69076] transition-colors font-sans text-sm rounded"
+                >
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <option key={n} value={n}>
+                      {n} estrela{n > 1 ? 's' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">
+                  Tipo de Interação
+                </label>
+                <select
+                  required
+                  value={form.interacaoTipo}
+                  onChange={(e) => setForm({ ...form, interacaoTipo: e.target.value })}
+                  className="w-full bg-[#0a0a0a] border border-gray-700 px-4 py-3 text-white focus:outline-none focus:border-[#A69076] transition-colors font-sans text-sm rounded"
+                >
+                  <option value="consulta">Consulta</option>
+                  <option value="proposta">Proposta</option>
+                  <option value="negociacao">Negociação</option>
+                  <option value="transferencia">Transferência</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">
+                  ID da Peça (opcional)
+                </label>
+                <input
+                  type="text"
+                  value={form.pecaId}
+                  onChange={(e) => setForm({ ...form, pecaId: e.target.value })}
+                  className="w-full bg-[#0a0a0a] border border-gray-700 px-4 py-3 text-white focus:outline-none focus:border-[#A69076] transition-colors font-sans text-sm rounded"
+                  placeholder="ID da peça relacionada"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">
+                  Comentário
+                </label>
+                <textarea
+                  required
+                  value={form.comentario}
+                  onChange={(e) => setForm({ ...form, comentario: e.target.value })}
+                  rows={3}
+                  className="w-full bg-[#0a0a0a] border border-gray-700 px-4 py-3 text-white focus:outline-none focus:border-[#A69076] transition-colors font-sans text-sm rounded"
+                  placeholder="Descreva sua experiência..."
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="flex items-center gap-2 text-gray-400 font-sans text-xs tracking-widest uppercase mb-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.visibilidade === 'publica'}
+                    onChange={(e) =>
+                      setForm({ ...form, visibilidade: e.target.checked ? 'publica' : 'privada' })
+                    }
+                    className="w-4 h-4 text-[#A69076] bg-[#0a0a0a] border-gray-700 rounded focus:ring-[#A69076]"
+                  />
+                  Avaliação pública
+                </label>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-4">
+              <button
+                type="submit"
+                className="flex-1 bg-[#A69076] text-black px-6 py-3 font-sans uppercase tracking-widest text-xs font-semibold hover:bg-[#b8a287] transition-colors rounded"
+              >
+                Registrar Avaliação
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowForm(false)}
+                className="border border-gray-700 text-gray-300 px-6 py-3 font-sans uppercase tracking-widest text-xs hover:border-white transition-colors rounded"
+              >
+                Cancelar
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
@@ -248,114 +366,3 @@ const Avaliacoes = () => {
 };
 
 export default Avaliacoes;
-
-      {/* Formulário de nova avaliação */}
-      {showForm && (
-        <div className="mb-8 bg-[#111] border border-gray-800 rounded-lg p-6">
-          <h2 className="text-2xl font-serif text-white mb-4">Registrar Avaliação</h2>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">
-                  Usuário Avaliado (ID)
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={form.avaliadoId}
-                  onChange={(e) => setForm({ ...form, avaliadoId: e.target.value })}
-                  className="w-full bg-[#0a0a0a] border border-gray-700 px-4 py-3 text-white focus:outline-none focus:border-[#A69076] transition-colors font-sans text-sm"
-                  placeholder="ID do usuário avaliado"
-                />
-              </div>
-              <div>
-                <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">
-                  Nota (1 a 5)
-                </label>
-                <select
-                  required
-                  value={form.nota}
-                  onChange={(e) => setForm({ ...form, nota: Number(e.target.value) })}
-                  className="w-full bg-[#0a0a0a] border border-gray-700 px-4 py-3 text-white focus:outline-none focus:border-[#A69076] transition-colors font-sans text-sm"
-                >
-                  {[1, 2, 3, 4, 5].map((n) => (
-                    <option key={n} value={n}>
-                      {n} estrela{n > 1 ? 's' : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">
-                  Tipo de Interação
-                </label>
-                <select
-                  required
-                  value={form.interacaoTipo}
-                  onChange={(e) => setForm({ ...form, interacaoTipo: e.target.value })}
-                  className="w-full bg-[#0a0a0a] border border-gray-700 px-4 py-3 text-white focus:outline-none focus:border-[#A69076] transition-colors font-sans text-sm"
-                >
-                  <option value="consulta">Consulta</option>
-                  <option value="proposta">Proposta</option>
-                  <option value="negociacao">Negociação</option>
-                  <option value="transferencia">Transferência</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">
-                  ID da Peça (opcional)
-                </label>
-                <input
-                  type="text"
-                  value={form.pecaId}
-                  onChange={(e) => setForm({ ...form, pecaId: e.target.value })}
-                  className="w-full bg-[#0a0a0a] border border-gray-700 px-4 py-3 text-white focus:outline-none focus:border-[#A69076] transition-colors font-sans text-sm"
-                  placeholder="ID da peça relacionada"
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">
-                  Comentário
-                </label>
-                <textarea
-                  required
-                  value={form.comentario}
-                  onChange={(e) => setForm({ ...form, comentario: e.target.value })}
-                  rows={3}
-                  className="w-full bg-[#0a0a0a] border border-gray-700 px-4 py-3 text-white focus:outline-none focus:border-[#A69076] transition-colors font-sans text-sm"
-                  placeholder="Descreva sua experiência..."
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label className="flex items-center gap-2 text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">
-                  <input
-                    type="checkbox"
-                    checked={form.visibilidade === 'publica'}
-                    onChange={(e) =>
-                      setForm({ ...form, visibilidade: e.target.checked ? 'publica' : 'privada' })
-                    }
-                    className="w-4 h-4 text-[#A69076] bg-[#0a0a0a] border-gray-700 rounded focus:ring-[#A69076]"
-                  />
-                  Avaliação pública
-                </label>
-              </div>
-            </div>
-
-            <div className="flex gap-3 pt-4">
-              <button
-                type="submit"
-                className="flex-1 bg-[#A69076] text-black px-6 py-3 font-sans uppercase tracking-widest text-xs font-semibold hover:bg-[#b8a287] transition-colors"
-              >
-                Registrar Avaliação
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowForm(false)}
-                className="border border-gray-700 text-gray-300 px-6 py-3 font-sans uppercase tracking-widest text-xs hover:border-white transition-colors"
-              >
-                Cancelar
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
