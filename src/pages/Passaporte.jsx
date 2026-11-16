@@ -32,6 +32,20 @@ import { apiUrl } from '../api';
 // Sub-components
 // ---------------------------------------------------------------------------
 
+const formatStatusLabel = (status) => {
+  const s = String(status || '').toUpperCase();
+  if (s === 'UNDER_VALIDATION' || s === 'EM REVISÃO' || s === 'EM REVISAO' || s === 'PENDENTE' || s === 'EM ANÁLISE') {
+    return 'Em análise';
+  }
+  if (s === 'APPROVED' || s === 'VERIFICADO' || s === 'VALIDO' || s === 'DISPONÍVEL') {
+    return 'Verificado';
+  }
+  return status || 'Em análise';
+};
+
+const formatCategoryLabel = (cat) =>
+  /^watches$/i.test(String(cat || '').trim()) ? 'Relógios' : cat;
+
 /** Thin horizontal rule with optional label */
 const SectionDivider = ({ label }) => (
   <div className="flex items-center gap-4 my-8">
@@ -473,13 +487,19 @@ const Passaporte = () => {
   const hasHistory = Array.isArray(passport.history) && passport.history.length > 0;
   const shareActive = passport.shareStatus === 'active';
 
+  const displayStatus = formatStatusLabel(passport.status);
+  const displayCategory = formatCategoryLabel(passport.category);
+
   const statusColors = {
     'verificado': 'text-emerald-400 border-emerald-900/40 bg-emerald-900/10',
-    'em revisão': 'text-yellow-500 border-yellow-900/40 bg-yellow-900/10',
+    'approved': 'text-emerald-400 border-emerald-900/40 bg-emerald-900/10',
+    'em análise': 'text-amber-400 border-amber-900/40 bg-amber-900/10',
+    'em revisão': 'text-amber-400 border-amber-900/40 bg-amber-900/10',
+    'under_validation': 'text-amber-400 border-amber-900/40 bg-amber-900/10',
     'disponível': 'text-sky-400 border-sky-900/40 bg-sky-900/10',
     'vendido': 'text-gray-500 border-gray-800 bg-[#111]',
   };
-  const statusClass = statusColors[passport.status?.toLowerCase()] || 'text-gray-400 border-gray-800 bg-[#111]';
+  const statusClass = statusColors[displayStatus.toLowerCase()] || statusColors[passport.status?.toLowerCase()] || 'text-gray-400 border-gray-800 bg-[#111]';
 
   // -------------------------------------------------------------------------
   // JSX
@@ -542,7 +562,7 @@ const Passaporte = () => {
                   <div className="flex items-center gap-1.5 bg-black/70 backdrop-blur-sm border border-[#A69076]/30 px-2.5 py-1.5">
                     <ShieldCheck size={12} className="text-[#A69076]" />
                     <span className="text-[9px] uppercase tracking-[0.2em] text-[#A69076] font-sans">
-                      Lastro Verified
+                      Autenticidade Lastro
                     </span>
                   </div>
                 </div>
@@ -575,7 +595,7 @@ const Passaporte = () => {
               {/* Status badge */}
               <div className={`inline-flex items-center gap-2 border px-3 py-1.5 text-[10px] uppercase tracking-widest font-sans ${statusClass}`}>
                 <div className="w-1.5 h-1.5 rounded-full bg-current opacity-75" />
-                {passport.status}
+                {displayStatus}
               </div>
 
               {/* Share panel (owner only) */}
@@ -601,7 +621,7 @@ const Passaporte = () => {
               {/* Lock indicator */}
               <div className="flex items-center gap-2 text-gray-700 text-[9px] uppercase tracking-widest font-sans">
                 <Lock size={10} />
-                Registro imutável · Lastro Digital Passport
+                Registro imutável · Passaporte Digital Lastro
               </div>
             </div>
 
@@ -612,7 +632,7 @@ const Passaporte = () => {
 
               {/* Product header */}
               <p className="text-[10px] uppercase tracking-widest text-gray-500 font-sans mb-2">
-                {passport.category}
+                {displayCategory}
               </p>
               <h1 className="text-3xl md:text-4xl font-serif text-white leading-tight mb-4">
                 {passport.name}
@@ -740,13 +760,6 @@ const Passaporte = () => {
                   Gerar QR Code
                 </button>
               </div>
-
-              {/* ---- Tracking info ---- */}
-              {tracking?.eventId && (
-                <p className="mt-6 text-[9px] text-gray-700 font-sans font-mono text-right">
-                  event:{tracking.eventId}
-                </p>
-              )}
             </div>
           </div>
         </div>

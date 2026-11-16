@@ -68,7 +68,7 @@ const Transferencias = () => {
     setError('');
     setSuccess('');
     if (!userId) { setError('Usuário não autenticado.'); return; }
-    if (!form.passportId) { setError('Informe o Passaport ID.'); return; }
+    if (!form.passportId) { setError('Informe o ID do Passaporte.'); return; }
     if (!form.paraUsuarioId) { setError('Informe o ID do destinatário.'); return; }
     try {
       const res = await fetch(apiUrl('/api/transferencias'), {
@@ -116,8 +116,8 @@ const Transferencias = () => {
           >
             {showForm ? 'Cancelar' : 'Nova Transferência'}
           </button>
-          <Link to="/dashboard" className="border border-gray-700 text-gray-300 px-4 py-2.5 hover:border-white transition-colors">
-            <ArrowLeft className="w-4 h-4" /> Voltar ao Dashboard
+          <Link to="/dashboard" className="border border-gray-700 text-gray-300 px-4 py-2.5 hover:border-white transition-colors flex items-center gap-2 text-xs font-sans uppercase tracking-wider">
+            <ArrowLeft className="w-4 h-4" /> Voltar ao Painel
           </Link>
         </div>
       </div>
@@ -156,7 +156,7 @@ const Transferencias = () => {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">Passaport ID *</label>
+                <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">ID do Passaporte *</label>
                 <input type="text" required value={form.passportId} onChange={(e) => setForm({ ...form, passportId: e.target.value })} className="w-full bg-[#0a0a0a] border border-gray-700 px-4 py-3 text-white focus:outline-none focus:border-[#A69076] transition-colors font-sans text-sm" placeholder="Ex: LST-9F4A2C8E1B0D" />
               </div>
               <div>
@@ -234,11 +234,11 @@ const Transferencias = () => {
         <div className="bg-[#111] border border-gray-800 rounded-lg overflow-hidden">
           <div className="border-b border-gray-800 p-4 bg-[#0a0a0a]">
             <h2 className="text-xl font-serif text-white mb-1">Histórico de Transferências por Passaporte</h2>
-            <p className="text-gray-500 text-xs">Insira um Passaport ID para ver o histórico de transferências dessa peça.</p>
+            <p className="text-gray-500 text-xs">Insira um ID do Passaporte para ver o histórico de transferências dessa peça.</p>
           </div>
           <div className="p-6">
             <div className="mb-6">
-              <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">Passaport ID</label>
+              <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">ID do Passaporte</label>
               <input type="text" value={form.passportId} onChange={(e) => setForm({ ...form, passportId: e.target.value })} className="w-full max-w-md bg-[#0a0a0a] border border-gray-700 px-4 py-3 text-white focus:outline-none focus:border-[#A69076] transition-colors font-sans text-sm" placeholder="Ex: LST-9F4A2C8E1B0D" />
             </div>
             <button onClick={() => form.passportId && loadHistorico(form.passportId)} disabled={!form.passportId} className="bg-[#A69076] text-black px-4 py-2 font-sans uppercase tracking-widest text-xs hover:bg-[#b8a287] transition-colors disabled:opacity-50">Carregar Histórico</button>

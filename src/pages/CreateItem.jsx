@@ -16,7 +16,6 @@ import {
 } from 'lucide-react';
 
 const CATEGORIES = [
-  'Watches',
   'Relógios',
   'Arte',
   'Colecionáveis',
@@ -143,7 +142,7 @@ const CreateItem = () => {
 
     const ownerId = localStorage.getItem('userId');
 
-    // DRE v2.0: Submetido para perícia e curadoria da equipe Lastro.
+    // Submetido para perícia e curadoria da equipe Lastro.
     const payload = {
       name: formData.name.trim(),
       ownerId,
@@ -236,10 +235,10 @@ const CreateItem = () => {
           <div className="bg-amber-500/10 border border-amber-500/30 p-3.5 text-left font-sans text-xs rounded space-y-1">
             <div className="flex items-center gap-2 text-amber-300 font-semibold tracking-wide uppercase text-[11px]">
               <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-              Status: UNDER VALIDATION
+              Status: Em análise
             </div>
             <p className="text-gray-300 text-[11px] leading-relaxed">
-              A peça já está disponível publicamente para consulta no catálogo enquanto aguarda a homologação da curadoria.
+              A peça já está disponível publicamente para consulta no catálogo enquanto aguarda a verificação da curadoria.
             </p>
           </div>
 

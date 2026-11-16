@@ -28,3 +28,4 @@ dist
 dre_extracted.txt
 extract_pdf.py
 .gitignore
+_ls_dirs.txt

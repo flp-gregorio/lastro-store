@@ -108,7 +108,7 @@ const Auth = () => {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="w-full bg-[#0a0a0a] border border-gray-700 px-4 py-3 text-white focus:outline-none focus:border-[#A69076] transition-colors font-sans text-sm"
-                  placeholder="Ex: Person A / Person B"
+                  placeholder="Digite seu nome completo"
                 />
               </div>
 
@@ -139,7 +139,7 @@ const Auth = () => {
                     }`}
                   >
                     <ShieldCheck className="w-3.5 h-3.5" />
-                    Representante Loja
+                    Representante da Loja
                   </button>
                 </div>
               </div>

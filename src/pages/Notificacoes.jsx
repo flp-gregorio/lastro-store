@@ -10,6 +10,12 @@ import {
 } from 'lucide-react';
 import { apiUrl } from '../api';
 
+const formatNotifText = (text) =>
+  String(text || '')
+    .replace(/\bWatches\b/gi, 'Relógios')
+    .replace(/\bUNDER_VALIDATION\b|\bUNDER VALIDATION\b/gi, 'Em análise')
+    .replace(/\bAPPROVED\b/gi, 'Verificado');
+
 const Notificacoes = () => {
   const [preferencias, setPreferencias] = useState({
     alertasAtivos: true,
@@ -104,12 +110,12 @@ const Notificacoes = () => {
               <Bell className="w-4 h-4" />
             </span>
             <span className="text-[10px] uppercase tracking-widest font-sans font-medium text-[#A69076]">
-              Central de Alertas e Notificações (Person B)
+              Central de Alertas e Acompanhamento
             </span>
           </div>
           <h1 className="text-4xl font-serif text-white">Notificações</h1>
           <p className="text-gray-400 font-sans text-sm mt-1">
-            Acompanhe atualizações de peças em curadoria, laudos concluídos e alertas de categorias rastreadas.
+            Acompanhe atualizações de peças em análise, laudos concluídos e alertas das suas categorias de interesse.
           </p>
         </div>
 
@@ -118,7 +124,7 @@ const Notificacoes = () => {
             to="/categorias-rastreadas"
             className="px-4 py-2 bg-[#A69076]/15 hover:bg-[#A69076]/25 border border-[#A69076]/50 text-[#A69076] text-xs uppercase tracking-widest font-sans transition-colors rounded"
           >
-            Categorias Rastreadas
+            Categorias de Interesse
           </Link>
           <button
             onClick={carregarNotificacoes}
@@ -157,8 +163,8 @@ const Notificacoes = () => {
 
               <div className="flex items-center justify-between p-4 bg-[#0a0a0a] border border-[#2a2a2a] rounded">
                 <div>
-                  <p className="font-sans text-sm text-gray-200 font-medium">Peças sob validação</p>
-                  <p className="text-[10px] text-gray-500 uppercase tracking-widest">Alertas de categorias rastreadas</p>
+                  <p className="font-sans text-sm text-gray-200 font-medium">Novas peças em análise</p>
+                  <p className="text-[10px] text-gray-500 uppercase tracking-widest">Alertas de categorias acompanhadas</p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input
@@ -219,13 +225,13 @@ const Notificacoes = () => {
               <BellOff className="w-12 h-12 text-gray-700 mb-4 mx-auto" />
               <p className="text-gray-400 font-serif text-xl mb-2">Nenhuma notificação encontrada</p>
               <p className="text-gray-600 font-sans text-xs max-w-sm mx-auto mb-6">
-                Rastreie a categoria "Watches" na página de rastreamento para receber notificações instantâneas quando novas peças forem enviadas.
+                Selecione a categoria "Relógios" ou outras categorias de seu interesse para receber alertas assim que novas peças forem cadastradas.
               </p>
               <Link
                 to="/categorias-rastreadas"
                 className="inline-block bg-[#A69076] text-black px-6 py-2.5 font-sans uppercase tracking-widest text-xs font-semibold rounded hover:bg-[#b8a287] transition-colors"
               >
-                Rastrear Categorias
+                Selecionar Categorias
               </Link>
             </div>
           ) : (
@@ -234,7 +240,9 @@ const Notificacoes = () => {
                 const isUnderValidationNotif =
                   notif.tipo === 'peca_pendente' ||
                   notif.titulo?.toLowerCase().includes('validação') ||
-                  notif.mensagem?.toLowerCase().includes('validação');
+                  notif.titulo?.toLowerCase().includes('análise') ||
+                  notif.mensagem?.toLowerCase().includes('validação') ||
+                  notif.mensagem?.toLowerCase().includes('verificação');
 
                 const isApprovedNotif =
                   notif.tipo === 'peca_aprovada' ||
@@ -259,12 +267,12 @@ const Notificacoes = () => {
                         {isApprovedNotif ? (
                           <span className="text-[10px] uppercase tracking-widest font-sans font-bold px-2 py-0.5 rounded border bg-emerald-500/20 text-emerald-300 border-emerald-500/40 flex items-center gap-1">
                             <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                            ITEM APROVADO
+                            Verificado
                           </span>
                         ) : isUnderValidationNotif ? (
                           <span className="text-[10px] uppercase tracking-widest font-sans font-bold px-2 py-0.5 rounded border bg-amber-500/20 text-amber-300 border-amber-500/40 flex items-center gap-1">
                             <Clock className="w-3 h-3 text-amber-400" />
-                            SOB VALIDAÇÃO
+                            Em análise
                           </span>
                         ) : (
                           <span className="text-[10px] uppercase tracking-widest font-sans px-2 py-0.5 rounded border bg-gray-800 text-gray-300 border-gray-700">
@@ -291,8 +299,8 @@ const Notificacoes = () => {
                       </span>
                     </div>
 
-                    <h4 className="font-serif text-white text-lg mb-1">{notif.titulo}</h4>
-                    <p className="text-xs text-gray-300 font-sans mb-4 leading-relaxed">{notif.mensagem}</p>
+                    <h4 className="font-serif text-white text-lg mb-1">{formatNotifText(notif.titulo)}</h4>
+                    <p className="text-xs text-gray-300 font-sans mb-4 leading-relaxed">{formatNotifText(notif.mensagem)}</p>
 
                     <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-gray-800/80">
                       <Link
@@ -303,7 +311,7 @@ const Notificacoes = () => {
                             : 'bg-[#A69076] hover:bg-[#b8a287] text-black'
                         }`}
                       >
-                        {isApprovedNotif ? 'Ver Peça Aprovada' : 'Ver Peça'}
+                        {isApprovedNotif ? 'Consultar Peça Verificada' : 'Ver Peça em Análise'}
                         <ArrowRight className="w-3.5 h-3.5" />
                       </Link>
 

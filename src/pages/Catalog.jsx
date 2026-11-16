@@ -6,7 +6,6 @@ import { apiUrl } from '../api';
 
 const CATEGORIES = [
   'TODOS',
-  'WATCHES',
   'RELÓGIOS',
   'ARTE',
   'COLECIONÁVEIS',
@@ -31,7 +30,8 @@ const Catalog = () => {
   const [loading, setLoading] = useState(true);
 
   // Category and query filters from URL
-  const activeCategory = searchParams.get('categoria') || 'TODOS';
+  const rawCategory = searchParams.get('categoria') || 'TODOS';
+  const activeCategory = normalizeText(rawCategory) === 'watches' ? 'RELÓGIOS' : rawCategory;
   const queryParam = searchParams.get('q') || '';
   const [searchInput, setSearchInput] = useState(queryParam);
 

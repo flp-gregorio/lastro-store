@@ -295,7 +295,8 @@ const Avaliacoes = () => {
         <div className="border-b border-gray-800 p-4 bg-[#0a0a0a]">
           <h2 className="text-xl font-serif text-white mb-1">Avaliações Recentes</h2>
           <p className="text-gray-500 text-xs">
-            {avaliacoes.length} avaliação{avaliacoes.length !== 1 ? 's' : ''} encontrada{avaliacoes.length !== 1 ? 's' : ''}
+            {avaliacoes.length}{' '}
+            {avaliacoes.length === 1 ? 'avaliação encontrada' : 'avaliações encontradas'}
           </p>
         </div>
 
@@ -355,7 +356,7 @@ const Avaliacoes = () => {
         <div className="mt-6 text-center">
           <button
             onClick={loadAvaliacoes}
-            className="text-[#A69076] hover:text-[#b8a287] text-xs font-sans uppercase tracking-widest flex items-center justify-center gap-2"
+            className="text-[#A69076] hover:text-[#b8a287] text-xs font-sans uppercase tracking-widest flex items-center justify-center gap-2 mx-auto"
           >
             <RefreshCw className="w-3 h-3" /> Atualizar lista
           </button>

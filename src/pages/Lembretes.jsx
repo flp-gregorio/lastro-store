@@ -115,7 +115,7 @@ const Lembretes = () => {
         <div>
           <h1 className="text-4xl font-serif mb-2">Lembretes de Conservação</h1>
           <p className="text-gray-400 font-sans text-sm">
-            Configure lembretes para manter suas peças em perfeito estado. Este é parte do ciclo de hábito da Lastro.
+            Configure lembretes periódicos de manutenção e revisão para preservar o estado de conservação do seu acervo.
           </p>
         </div>
       </div>

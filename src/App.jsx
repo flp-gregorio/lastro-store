@@ -1,7 +1,9 @@
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import Navbar from './components/Navbar';
+import Footer from './components/Footer';
 import Home from './pages/Home';
+import HowItWorks from './pages/HowItWorks';
 import Catalog from './pages/Catalog';
 import ItemDetails from './pages/ItemDetails';
 import Auth from './pages/Auth';
@@ -25,34 +27,37 @@ const App = () => {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/landing" element={<Landing />} />
+          <Route path="/como-funciona" element={<HowItWorks />} />
           <Route path="/catalogo" element={<Catalog />} />
           <Route path="/peca/:id" element={<ItemDetails />} />
           <Route path="/login" element={<Auth />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/dashboard/nova-peca" element={<CreateItem />} />
-          
-          {/* RF01, RF02, RF04 — Consulta pública do Passaporte Digital por link ou QR Code */}
+          <Route path="/submeter-peca" element={<CreateItem />} />
+
+          {/* Consulta pública do Passaporte Digital */}
           <Route path="/passaporte/:identifier" element={<Passaporte />} />
 
-          {/* Stage 2: Rastreamento de Categorias (Person B) */}
+          {/* Acompanhamento de Categorias */}
           <Route path="/categorias-rastreadas" element={<CategoriaTracking />} />
           <Route path="/rastreamento" element={<CategoriaTracking />} />
           <Route path="/tracking" element={<CategoriaTracking />} />
 
-          {/* Stage 5: Verificação e Aprovação pela Loja (Person C) */}
+          {/* Curadoria e Homologação da Loja */}
           <Route path="/admin/verificacao" element={<AdminVerify />} />
           <Route path="/verificacao" element={<AdminVerify />} />
 
-          {/* Stage 4 & Stage 6: Central de Notificações */}
+          {/* Central de Notificações */}
           <Route path="/notificacoes" element={<Notificacoes />} />
 
-          {/* Outras rotas do DRE v2.0 */}
+          {/* Acervo e Gestão do Colecionador */}
           <Route path="/wishlist" element={<Wishlist />} />
           <Route path="/lembretes" element={<Lembretes />} />
           <Route path="/avaliacoes" element={<Avaliacoes />} />
           <Route path="/transferencias" element={<Transferencias />} />
         </Routes>
       </main>
+      <Footer />
     </div>
   );
 };

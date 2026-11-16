@@ -22,6 +22,19 @@ const formatPrice = (value) => {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 };
 
+const formatStatus = (status) => {
+  const s = String(status || '').toUpperCase();
+  if (s === 'UNDER_VALIDATION' || s === 'EM REVISÃO' || s === 'EM REVISAO' || s === 'PENDENTE' || s === 'EM ANÁLISE') {
+    return 'Em análise';
+  }
+  if (s === 'APPROVED' || s === 'VERIFICADO' || s === 'VALIDO' || s === 'ATIVO' || s === 'DISPONÍVEL') {
+    return 'Verificado';
+  }
+  return status || 'Em análise';
+};
+
+const formatCat = (c) => (/^watches$/i.test(String(c || '').trim()) ? 'Relógios' : c);
+
 const ROLE_LABELS = {
   Comprador: 'Comprador / Colecionador',
   Proprietário: 'Proprietário',
@@ -156,7 +169,7 @@ const BuyerDashboard = ({ user, onLogout }) => {
   };
 
   // ---------------------------------------------------------------------------
-  // RF16 — Convite ao primeiro investimento
+  // Convite ao primeiro registro no acervo
   // ---------------------------------------------------------------------------
   const [firstInvestment, setFirstInvestment] = useState(null);
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -223,7 +236,7 @@ const BuyerDashboard = ({ user, onLogout }) => {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 pt-24 min-h-screen">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 border-b border-gray-800 pb-8">
         <div>
-          <h1 className="text-4xl font-serif mb-2">Dashboard do Colecionador</h1>
+          <h1 className="text-4xl font-serif mb-2">Painel do Colecionador</h1>
           <p className="text-gray-400 font-sans text-sm">
             Bem-vindo de volta, <span className="text-white">{user.name}</span>
             {' · '}
@@ -241,15 +254,15 @@ const BuyerDashboard = ({ user, onLogout }) => {
         </button>
       </div>
 
-      {/* Quick Access Presentation Stages */}
+      {/* Acesso Rápido */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
         <Link
           to="/categorias-rastreadas"
           className="bg-[#111] hover:bg-[#161616] border border-gray-800 hover:border-[#A69076]/60 p-4 rounded transition-all flex items-center justify-between"
         >
           <div>
-            <span className="text-xs uppercase tracking-widest text-[#A69076] font-sans font-semibold block">Stage 2</span>
-            <span className="text-sm font-serif text-white">Rastrear Categorias</span>
+            <span className="text-xs uppercase tracking-widest text-[#A69076] font-sans font-semibold block">Monitoramento</span>
+            <span className="text-sm font-serif text-white">Categorias de Interesse</span>
           </div>
           <ChevronRight className="w-4 h-4 text-gray-500" />
         </Link>
@@ -258,8 +271,8 @@ const BuyerDashboard = ({ user, onLogout }) => {
           className="bg-[#111] hover:bg-[#161616] border border-gray-800 hover:border-[#A69076]/60 p-4 rounded transition-all flex items-center justify-between"
         >
           <div>
-            <span className="text-xs uppercase tracking-widest text-[#A69076] font-sans font-semibold block">Stage 3</span>
-            <span className="text-sm font-serif text-white">Submeter Peça (Watch)</span>
+            <span className="text-xs uppercase tracking-widest text-[#A69076] font-sans font-semibold block">Curadoria</span>
+            <span className="text-sm font-serif text-white">Submeter Nova Peça</span>
           </div>
           <ChevronRight className="w-4 h-4 text-gray-500" />
         </Link>
@@ -268,14 +281,14 @@ const BuyerDashboard = ({ user, onLogout }) => {
           className="bg-[#111] hover:bg-[#161616] border border-gray-800 hover:border-[#A69076]/60 p-4 rounded transition-all flex items-center justify-between"
         >
           <div>
-            <span className="text-xs uppercase tracking-widest text-[#A69076] font-sans font-semibold block">Stage 4 & 6</span>
-            <span className="text-sm font-serif text-white">Ver Notificações</span>
+            <span className="text-xs uppercase tracking-widest text-[#A69076] font-sans font-semibold block">Alertas</span>
+            <span className="text-sm font-serif text-white">Central de Notificações</span>
           </div>
           <ChevronRight className="w-4 h-4 text-gray-500" />
         </Link>
       </div>
 
-      {/* RF16 — Convite ao primeiro investimento */}
+      {/* Convite ao primeiro registro */}
       {firstInvestment && !firstInvestment.primeiroInvestimentoFeito && inviteOpen === false && inviteResult === null && (
         <div className="mb-8 bg-[#111] border border-[#A69076]/30 rounded-xl p-6">
           <div className="flex items-start gap-4">
@@ -306,7 +319,7 @@ const BuyerDashboard = ({ user, onLogout }) => {
         </div>
       )}
 
-      {/* RF16 — Modal de resposta ao convite */}
+      {/* Modal de resposta ao convite */}
       {inviteOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-[#111] border border-[#A69076]/40 rounded-xl p-8 w-full max-w-md shadow-2xl">
@@ -399,7 +412,7 @@ const BuyerDashboard = ({ user, onLogout }) => {
           <EmptyState
             icon={Heart}
             title="Nenhuma peça salva ainda"
-            subtitle="Salve peças do catálogo para iniciar sua coleção de desejos. Este é seu primeiro investimento no ciclo da Lastro."
+            subtitle="Salve peças do catálogo para acompanhar seu histórico e construir seu acervo pessoal."
             action={
               <Link
                 to="/catalogo"
@@ -428,7 +441,7 @@ const BuyerDashboard = ({ user, onLogout }) => {
                         />
                       </div>
                       <p className="text-gray-500 font-sans text-xs uppercase tracking-widest mb-1">
-                        {peca.category}
+                        {formatCat(peca.category)}
                       </p>
                       <h3 className="font-serif text-gray-200 mb-2">{peca.name}</h3>
                       <p className="font-sans text-[#A69076] font-medium mb-4">{formatPrice(peca.price)}</p>
@@ -494,14 +507,14 @@ const BuyerDashboard = ({ user, onLogout }) => {
                   />
                 </div>
                 <p className="text-gray-500 font-sans text-xs uppercase tracking-widest mb-1">
-                  {peca.category}
+                  {formatCat(peca.category)}
                 </p>
                 <h3 className="font-serif text-gray-200 mb-2">{peca.name}</h3>
                 <div className="space-y-2 mb-4">
                   <div className="flex justify-between text-xs font-sans">
                     <span className="text-gray-500">Status</span>
                     <span className="text-[#A69076] uppercase tracking-widest font-medium text-[10px]">
-                      {peca.status}
+                      {formatStatus(peca.status)}
                     </span>
                   </div>
                   <div className="flex justify-between text-xs font-sans">
@@ -656,11 +669,11 @@ const BuyerDashboard = ({ user, onLogout }) => {
 
       <div className="mt-12 pt-8 border-t border-gray-800 flex flex-col sm:flex-row justify-between items-center gap-4">
         <p className="text-[10px] text-gray-600 uppercase tracking-widest">
-          Seus dados (wishlist, peças registradas, preferências) continuam sendo seus. Exportáveis a qualquer momento.
+          Seus dados (listas de desejos, peças registradas e preferências) continuam sendo seus e podem ser exportados a qualquer momento.
         </p>
         <div className="flex items-center gap-2 text-[10px] text-gray-500 font-sans">
           <ShieldCheck className="w-3 h-3 text-[#A69076]" />
-          <span>Privacidade por padrão · Sem rastreamento oculto</span>
+          <span>Privacidade por padrão · Controle total dos seus registros</span>
         </div>
       </div>
     </div>
@@ -682,9 +695,7 @@ const SellerDashboard = ({ user, onLogout }) => {
   const [loading, setLoading] = useState(true);
   const userId = localStorage.getItem('userId') || 'anon_user';
 
-  // ---------------------------------------------------------------------------
-  // RF10 — Notificar peças compatíveis
-  // ---------------------------------------------------------------------------
+  // Notificar peças compatíveis
   const [alertOpen, setAlertOpen] = useState(false);
   const [alertProcessing, setAlertProcessing] = useState(false);
   const [alertResult, setAlertResult] = useState(null);
@@ -743,10 +754,19 @@ const SellerDashboard = ({ user, onLogout }) => {
         setPieces(mine);
 
         setStats({
-          ativas: mine.filter((p) => p.status === 'ativo' || p.status === 'valido').length,
-          revisao: mine.filter((p) => p.status === 'em revisão' || p.status === 'em revisao').length,
-          vendidas: mine.filter((p) => p.status === 'vendido' || p.status === 'vendida').length,
-          pendentes: mine.filter((p) => !p.status || p.status === 'pendente').length,
+          ativas: mine.filter((p) => {
+            const st = String(p.status || '').toUpperCase();
+            return st === 'APPROVED' || st === 'VERIFICADO' || st === 'ATIVO' || st === 'VALIDO';
+          }).length,
+          revisao: mine.filter((p) => {
+            const st = String(p.status || '').toUpperCase();
+            return st === 'UNDER_VALIDATION' || st === 'EM REVISÃO' || st === 'EM REVISAO' || st === 'EM ANÁLISE';
+          }).length,
+          vendidas: mine.filter((p) => {
+            const st = String(p.status || '').toLowerCase();
+            return st === 'vendido' || st === 'vendida';
+          }).length,
+          pendentes: mine.filter((p) => !p.status || String(p.status || '').toLowerCase() === 'pendente').length,
         });
       }
     } catch (err) {
@@ -786,7 +806,7 @@ const SellerDashboard = ({ user, onLogout }) => {
             to="/admin/verificacao"
             className="bg-[#A69076] text-black px-5 py-2.5 font-sans uppercase tracking-widest text-xs font-semibold hover:bg-[#b8a287] transition-colors flex items-center gap-2 rounded"
           >
-            <ShieldCheck className="w-4 h-4" /> Portal de Curadoria (Person C)
+            <ShieldCheck className="w-4 h-4" /> Painel de Curadoria
           </Link>
           <Link
             to="/dashboard/nova-peca"
@@ -806,11 +826,11 @@ const SellerDashboard = ({ user, onLogout }) => {
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
         <div className="bg-[#111] border border-gray-800 p-6">
-          <h3 className="text-gray-400 uppercase tracking-widest text-xs font-sans mb-4">Estoque Ativo</h3>
+          <h3 className="text-gray-400 uppercase tracking-widest text-xs font-sans mb-4">Peças Verificadas</h3>
           <p className="text-4xl font-serif text-white">{stats.ativas}</p>
         </div>
         <div className="bg-[#111] border border-gray-800 p-6">
-          <h3 className="text-gray-400 uppercase tracking-widest text-xs font-sans mb-4">Em Revisão</h3>
+          <h3 className="text-gray-400 uppercase tracking-widest text-xs font-sans mb-4">Em Análise</h3>
           <p className="text-4xl font-serif text-white">{stats.revisao}</p>
         </div>
         <div className="bg-[#111] border border-gray-800 p-6">
@@ -876,18 +896,18 @@ const SellerDashboard = ({ user, onLogout }) => {
                         </div>
                       </div>
                     </td>
-                    <td className="py-4 text-gray-400 font-sans text-sm">{peca.category}</td>
+                    <td className="py-4 text-gray-400 font-sans text-sm">{formatCat(peca.category)}</td>
                     <td className="py-4">
                       <span
                         className={`px-2 py-1 rounded text-[10px] font-sans uppercase ${
-                          peca.status === 'valido' || peca.status === 'ativo'
+                          formatStatus(peca.status) === 'Verificado'
                             ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                            : peca.status === 'em revisão' || peca.status === 'em revisao'
+                            : formatStatus(peca.status) === 'Em análise'
                             ? 'bg-[#A69076]/20 text-[#A69076] border border-[#A69076]/30'
                             : 'bg-gray-700/20 text-gray-500 border border-gray-700/30'
                         }`}
                       >
-                        {peca.status}
+                        {formatStatus(peca.status)}
                       </span>
                     </td>
                     <td className="py-4 text-gray-400 font-sans text-xs">
@@ -925,7 +945,7 @@ const SellerDashboard = ({ user, onLogout }) => {
         )}
       </section>
 
-      {/* RF10 — Modal de notificação de peça compatível */}
+      {/* Modal de notificação de peça compatível */}
       {alertOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-[#111] border border-[#A69076]/40 rounded-xl p-8 w-full max-w-md shadow-2xl">

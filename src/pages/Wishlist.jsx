@@ -111,7 +111,7 @@ const Wishlist = () => {
         <div>
           <h1 className="text-4xl font-serif mb-2">Lista de Desejos</h1>
           <p className="text-gray-400 font-sans text-sm">
-            Salve peças que deseja acompanhar. Este é seu primeiro investimento no ciclo de hábito da Lastro.
+            Organize e acompanhe as peças de seu interesse no acervo da Lastro.
           </p>
         </div>
         <button
@@ -220,7 +220,7 @@ const Wishlist = () => {
                   <Heart className="w-12 h-12 text-gray-700 mb-4" />
                   <p className="text-gray-400 font-serif text-xl mb-2">Nenhuma peça salva ainda</p>
                   <p className="text-gray-600 font-sans text-xs mb-6">
-                    Salve peças do catálogo para começar sua coleção de desejos. Este é seu primeiro investimento no ciclo da Lastro.
+                    Organize e acompanhe as peças de seu interesse no acervo da Lastro.
                   </p>
                   <Link
                     to="/catalogo"

@@ -3,7 +3,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Search, X, User, Bell, ShieldCheck, Tag } from 'lucide-react';
 
 const CATEGORIES = [
-  'WATCHES',
   'RELÓGIOS',
   'ARTE',
   'COLECIONÁVEIS',
@@ -92,17 +91,17 @@ const Navbar = () => {
               <Search className="h-4 w-4 md:h-5 md:w-5" />
             </button>
 
-            {/* Category Tracking Link (Stage 2) */}
+            {/* Category Tracking Link */}
             <Link
               to="/categorias-rastreadas"
               className="text-gray-300 hover:text-[#A69076] hidden md:flex items-center gap-1.5 transition-colors px-2 py-1 text-[11px] uppercase tracking-wider font-sans"
-              title="Rastreamento de Categorias"
+              title="Acompanhamento de Categorias"
             >
               <Tag className="w-3.5 h-3.5 text-[#A69076]" />
-              Rastreamento
+              Interesses
             </Link>
 
-            {/* Notifications Bell (Stage 4 & Stage 6) */}
+            {/* Notifications Bell */}
             <Link
               to="/notificacoes"
               className="relative text-gray-300 hover:text-[#A69076] p-1.5 transition-colors"
@@ -112,7 +111,7 @@ const Navbar = () => {
               <span className="absolute top-1 right-1 w-2 h-2 bg-[#A69076] rounded-full"></span>
             </Link>
 
-            {/* Store Representative Verification Link (Stage 5) */}
+            {/* Store Representative Verification Link */}
             {isStoreRep && (
               <Link
                 to="/admin/verificacao"
@@ -176,7 +175,7 @@ const Navbar = () => {
                   autoFocus
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Pesquisar por Watches, Relógios, Arte, perito ou código do passaporte..."
+                  placeholder="Pesquisar por Relógios, Arte, Joias, perito ou código do passaporte..."
                   className="w-full bg-[#141414] border border-[#2a2a2a] text-white pl-12 pr-12 py-3 text-sm font-sans focus:outline-none focus:border-[#A69076] transition-colors"
                 />
                 <button
@@ -207,7 +206,7 @@ const Navbar = () => {
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="block text-[#A69076] text-sm uppercase tracking-widest font-sans"
               >
-                Rastreamento de Categorias
+                Categorias de Interesse
               </Link>
               <Link
                 to="/notificacoes"
@@ -229,7 +228,7 @@ const Navbar = () => {
                   onClick={() => setIsMobileMenuOpen(false)}
                   className="block text-[#A69076] text-sm uppercase tracking-widest font-sans font-semibold"
                 >
-                  Portal de Curadoria (Person C)
+                  Painel de Curadoria
                 </Link>
               )}
             </div>

@@ -4,8 +4,9 @@ import { ShieldCheck } from 'lucide-react';
 
 const ItemCard = ({ item }) => {
   const s = String(item.status || '').toUpperCase();
-  const isPending = s === 'UNDER_VALIDATION' || s === 'EM REVISÃO' || s === 'PENDENTE';
+  const isPending = s === 'UNDER_VALIDATION' || s === 'EM REVISÃO' || s === 'EM REVISAO' || s === 'PENDENTE' || s === 'EM ANÁLISE';
   const isApproved = s === 'APPROVED' || s === 'VERIFICADO' || s === 'DISPONÍVEL' || s === 'VALIDO';
+  const displayCategory = /^watches$/i.test(String(item.category || '').trim()) ? 'Relógios' : item.category;
 
   return (
     <Link to={`/peca/${item.id || item.passportId}`} className="group block">
@@ -19,12 +20,12 @@ const ItemCard = ({ item }) => {
         {isPending ? (
           <div className="absolute top-4 right-4 text-[9px] uppercase tracking-widest font-sans font-bold px-2.5 py-1 rounded border bg-amber-500/25 text-amber-300 border-amber-500/40 backdrop-blur-md shadow-lg flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
-            UNDER VALIDATION
+            Em análise
           </div>
         ) : isApproved ? (
           <div className="absolute top-4 right-4 text-[9px] uppercase tracking-widest font-sans font-semibold px-2.5 py-1 rounded border bg-emerald-500/25 text-emerald-300 border-emerald-500/40 backdrop-blur-md shadow-lg flex items-center gap-1.5">
             <ShieldCheck className="w-3 h-3 text-emerald-400" />
-            APPROVED
+            Verificado
           </div>
         ) : item.status ? (
           <div className="absolute top-4 right-4 text-[9px] uppercase tracking-widest font-sans px-2 py-1 rounded border bg-gray-500/20 text-gray-400 border-gray-500/30 backdrop-blur-md">
@@ -36,7 +37,7 @@ const ItemCard = ({ item }) => {
       <div className="space-y-2">
         <div className="flex justify-between items-start">
           <p className="text-sm font-sans tracking-widest uppercase text-gray-500">
-            {item.category}
+            {displayCategory}
           </p>
         </div>
         <h3 className="text-xl font-serif text-gray-200 group-hover:text-white transition-colors">

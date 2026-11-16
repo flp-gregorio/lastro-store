@@ -236,13 +236,17 @@ router.post('/', validate(createPecaSchema), async (req, res) => {
     try {
       const trackingUserIds = await getUsersTrackingCategory(createdPiece.category);
 
+      const displayCat = /^watches$/i.test(String(createdPiece.category || '').trim())
+        ? 'Relógios'
+        : createdPiece.category;
+
       for (const trackerUserId of trackingUserIds) {
-        // Envia notificação comunicando que nova peça da categoria foi submetida e aguarda validação
+        // Envia notificação comunicando que nova peça da categoria foi cadastrada e aguarda verificação
         await createNotification({
           userId: trackerUserId,
           tipo: 'peca_pendente',
-          titulo: `Novo item em validação: ${createdPiece.name}`,
-          mensagem: `Um novo item da categoria "${createdPiece.category}" (${createdPiece.name}) foi submetido e está aguardando validação da curadoria.`,
+          titulo: `Nova peça em análise: ${createdPiece.name}`,
+          mensagem: `Um novo produto da categoria ${displayCat} (${createdPiece.name}) foi cadastrado e está aguardando verificação da curadoria.`,
           pecaId: createdPiece.id,
           passportId: createdPiece.passport_id,
           acaoUrl: `/peca/${createdPiece.id}`
@@ -366,12 +370,16 @@ router.patch('/:id/status', requireStoreRole, async (req, res) => {
       try {
         const trackingUserIds = await getUsersTrackingCategory(updatedPeca.category);
 
+        const displayCat = /^watches$/i.test(String(updatedPeca.category || '').trim())
+          ? 'Relógios'
+          : updatedPeca.category;
+
         for (const trackerUserId of trackingUserIds) {
           await createNotification({
             userId: trackerUserId,
             tipo: 'peca_aprovada',
-            titulo: `Peça Verificada: ${updatedPeca.name}`,
-            mensagem: `A peça "${updatedPeca.name}" da categoria "${updatedPeca.category}" foi verificada e aprovada com sucesso pela Curadoria Lastro!`,
+            titulo: `Peça verificada: ${updatedPeca.name}`,
+            mensagem: `O produto "${updatedPeca.name}" da categoria ${displayCat} foi verificado pela Curadoria Lastro e já está disponível para consulta.`,
             pecaId: updatedPeca.id,
             passportId: updatedPeca.passport_id,
             acaoUrl: `/peca/${updatedPeca.id}`

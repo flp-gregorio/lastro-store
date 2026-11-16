@@ -11,6 +11,8 @@ import {
 } from 'lucide-react';
 import { apiUrl } from '../api';
 
+const formatCat = (c) => (/^watches$/i.test(String(c || '').trim()) ? 'Relógios' : c);
+
 const AdminVerify = () => {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -75,7 +77,7 @@ const AdminVerify = () => {
       if (response.ok) {
         setFeedback({
           type: 'success',
-          text: `A peça "${item.name}" foi aprovada com sucesso! O status foi alterado para APPROVED e as notificações foram enviadas.`
+          text: `A peça "${item.name}" foi verificada e homologada com sucesso! As notificações foram enviadas aos colecionadores interessados.`
         });
         await carregarPecas();
       } else {
@@ -95,12 +97,12 @@ const AdminVerify = () => {
 
   const pendingItems = items.filter((item) => {
     const s = String(item.status || '').toUpperCase();
-    return s === 'UNDER_VALIDATION' || s === 'EM REVISÃO' || s === 'PENDENTE';
+    return s === 'UNDER_VALIDATION' || s === 'EM REVISÃO' || s === 'EM REVISAO' || s === 'PENDENTE' || s === 'EM ANÁLISE';
   });
 
   const approvedItems = items.filter((item) => {
     const s = String(item.status || '').toUpperCase();
-    return s === 'APPROVED' || s === 'VERIFICADO' || s === 'DISPONÍVEL';
+    return s === 'APPROVED' || s === 'VERIFICADO' || s === 'DISPONÍVEL' || s === 'VALIDO';
   });
 
   return (
@@ -114,14 +116,14 @@ const AdminVerify = () => {
                 <ShieldCheck className="w-4 h-4" />
               </span>
               <span className="text-[10px] uppercase tracking-widest font-sans font-medium text-[#A69076]">
-                Portal de Curadoria e Homologação de Passaportes (Person C)
+                Painel de Curadoria e Homologação
               </span>
             </div>
             <h1 className="text-3xl md:text-5xl font-serif text-white tracking-tight">
               Verificação de Peças
             </h1>
             <p className="text-gray-400 font-sans text-sm mt-2 max-w-2xl">
-              Área restrita à representação da loja e peritos credenciados da Lastro para inspeção de dossiês e homologação técnica.
+              Área dedicada à representação da loja e peritos credenciados da Lastro para inspeção de dossiês e homologação técnica.
             </p>
           </div>
 
@@ -154,7 +156,7 @@ const AdminVerify = () => {
         {/* Status Metrics */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
           <div className="bg-[#111] border border-gray-800 p-5 rounded-sm">
-            <span className="text-xs uppercase tracking-widest font-sans text-gray-500">Pendentes de Validação</span>
+            <span className="text-xs uppercase tracking-widest font-sans text-gray-500">Peças em Análise</span>
             <div className="flex items-baseline justify-between mt-2">
               <span className="text-3xl font-serif text-amber-400">{pendingItems.length}</span>
               <span className="text-[10px] font-sans uppercase tracking-wider text-amber-400/80 bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/20">
@@ -164,7 +166,7 @@ const AdminVerify = () => {
           </div>
 
           <div className="bg-[#111] border border-gray-800 p-5 rounded-sm">
-            <span className="text-xs uppercase tracking-widest font-sans text-gray-500">Peças Homologadas</span>
+            <span className="text-xs uppercase tracking-widest font-sans text-gray-500">Peças Verificadas</span>
             <div className="flex items-baseline justify-between mt-2">
               <span className="text-3xl font-serif text-emerald-400">{approvedItems.length}</span>
               <span className="text-[10px] font-sans uppercase tracking-wider text-emerald-400/80 bg-emerald-400/10 px-2 py-0.5 rounded border border-emerald-400/20">
@@ -176,19 +178,19 @@ const AdminVerify = () => {
           <div className="bg-[#111] border border-gray-800 p-5 rounded-sm">
             <span className="text-xs uppercase tracking-widest font-sans text-gray-500">Operador Atual</span>
             <div className="flex items-baseline justify-between mt-2">
-              <span className="text-sm font-sans text-white truncate">{currentUser?.name || 'Representante Loja'}</span>
+              <span className="text-sm font-sans text-white truncate">{currentUser?.name || 'Representante da Loja'}</span>
               <span className="text-[10px] font-sans uppercase tracking-wider text-[#A69076] bg-[#A69076]/10 px-2 py-0.5 rounded border border-[#A69076]/30">
-                {currentUser?.role || 'EquipeLastro'}
+                {currentUser?.role === 'EquipeLastro' ? 'Curadoria Lastro' : currentUser?.role || 'Curadoria Lastro'}
               </span>
             </div>
           </div>
         </div>
 
-        {/* Section 1: Pending Products (Stage 5 Target) */}
+        {/* Section 1: Pending Products */}
         <div className="mb-12">
           <div className="flex items-center gap-2 mb-6">
             <Clock className="w-5 h-5 text-amber-400" />
-            <h2 className="text-xl md:text-2xl font-serif text-white">Submissões Aguardando Validação</h2>
+            <h2 className="text-xl md:text-2xl font-serif text-white">Peças Aguardando Verificação</h2>
           </div>
 
           {loading ? (
@@ -198,9 +200,9 @@ const AdminVerify = () => {
           ) : pendingItems.length === 0 ? (
             <div className="py-16 text-center border border-dashed border-gray-800 rounded bg-[#111] p-8">
               <CheckCircle className="w-10 h-10 text-emerald-500/60 mx-auto mb-3" />
-              <p className="text-gray-300 font-serif text-lg mb-1">Nenhuma peça aguardando validação</p>
+              <p className="text-gray-300 font-serif text-lg mb-1">Nenhuma peça em análise no momento</p>
               <p className="text-gray-500 font-sans text-xs">
-                Todas as propostas submetidas foram periciadas e homologadas pela equipe.
+                Todas as submissões recentes foram verificadas e homologadas pela curadoria.
               </p>
             </div>
           ) : (
@@ -225,10 +227,10 @@ const AdminVerify = () => {
                       <div>
                         <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                           <span className="text-xs uppercase tracking-widest font-sans text-[#A69076]">
-                            {item.category}
+                            {formatCat(item.category)}
                           </span>
                           <span className="text-[10px] uppercase tracking-widest font-sans font-bold px-2.5 py-1 rounded border bg-amber-500/20 text-amber-300 border-amber-500/40">
-                            UNDER VALIDATION
+                            Em análise
                           </span>
                         </div>
 
@@ -265,11 +267,11 @@ const AdminVerify = () => {
                         >
                           {approvingId === item.id ? (
                             <>
-                              <Loader2 className="w-4 h-4 animate-spin" /> Homologando...
+                              <Loader2 className="w-4 h-4 animate-spin" /> Verificando...
                             </>
                           ) : (
                             <>
-                              <ShieldCheck className="w-4 h-4" /> Aprovar Produto (Validar)
+                              <ShieldCheck className="w-4 h-4" /> Verificar e Homologar Peça
                             </>
                           )}
                         </button>
@@ -293,7 +295,7 @@ const AdminVerify = () => {
         <div>
           <div className="flex items-center gap-2 mb-6">
             <CheckCircle className="w-5 h-5 text-emerald-400" />
-            <h2 className="text-xl md:text-2xl font-serif text-white">Peças Homologadas e Aprovadas</h2>
+            <h2 className="text-xl md:text-2xl font-serif text-white">Peças Verificadas Recentemente</h2>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -303,10 +305,10 @@ const AdminVerify = () => {
                   <div className="relative aspect-[4/3] bg-black rounded overflow-hidden mb-3">
                     <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
                     <div className="absolute top-2 right-2 text-[9px] uppercase tracking-widest font-sans font-medium px-2 py-0.5 rounded border bg-emerald-500/20 text-emerald-300 border-emerald-500/40">
-                      APPROVED
+                      Verificado
                     </div>
                   </div>
-                  <span className="text-[10px] uppercase tracking-widest font-sans text-gray-500">{item.category}</span>
+                  <span className="text-[10px] uppercase tracking-widest font-sans text-gray-500">{formatCat(item.category)}</span>
                   <h4 className="font-serif text-white text-lg mt-0.5 truncate">{item.name}</h4>
                   <p className="font-sans text-sm text-gray-300">
                     {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.price)}

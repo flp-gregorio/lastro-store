@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ShieldCheck, ArrowLeft, Info, FileText, Loader2 } from 'lucide-react';
 import { apiUrl } from '../api';
+import EscrowModal from '../components/EscrowModal';
 
 const ItemDetails = () => {
   const { id } = useParams();
@@ -9,6 +10,7 @@ const ItemDetails = () => {
   const [loading, setLoading] = useState(true);
   const [approving, setApproving] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const [isEscrowOpen, setIsEscrowOpen] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem('user');
@@ -76,8 +78,10 @@ const ItemDetails = () => {
   if (!item) return <div className="text-center py-24 bg-[#0a0a0a] text-white">Peça não encontrada</div>;
 
   const s = String(item.status || '').toUpperCase();
-  const isPending = s === 'UNDER_VALIDATION' || s === 'EM REVISÃO' || s === 'PENDENTE';
-  const isApproved = s === 'APPROVED' || s === 'VERIFICADO' || s === 'DISPONÍVEL';
+  const isPending = s === 'UNDER_VALIDATION' || s === 'EM REVISÃO' || s === 'EM REVISAO' || s === 'PENDENTE' || s === 'EM ANÁLISE';
+  const isApproved = s === 'APPROVED' || s === 'VERIFICADO' || s === 'DISPONÍVEL' || s === 'VALIDO';
+  const displayCategory = /^watches$/i.test(String(item.category || '').trim()) ? 'Relógios' : item.category;
+  const formattedPrice = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.price);
 
   const isStoreRep =
     currentUser?.role === 'EquipeLastro' ||
@@ -101,10 +105,10 @@ const ItemDetails = () => {
             <div className="w-3 h-3 rounded-full bg-amber-400 animate-pulse"></div>
             <div>
               <span className="text-xs font-sans font-bold uppercase tracking-widest text-amber-300 block">
-                STATUS: UNDER VALIDATION (Aguardando Validação)
+                Status: Em análise
               </span>
               <p className="text-xs text-amber-200/80 font-sans mt-0.5">
-                Esta peça foi submetida pelo proprietário e está aguardando homologação e laudo técnico da Curadoria Lastro.
+                Esta peça foi submetida pelo proprietário e está aguardando verificação e laudo técnico da Curadoria Lastro.
               </p>
             </div>
           </div>
@@ -117,11 +121,11 @@ const ItemDetails = () => {
             >
               {approving ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" /> Homologando...
+                  <Loader2 className="w-4 h-4 animate-spin" /> Verificando...
                 </>
               ) : (
                 <>
-                  <ShieldCheck className="w-4 h-4" /> Aprovar Produto
+                  <ShieldCheck className="w-4 h-4" /> Verificar e Homologar Peça
                 </>
               )}
             </button>
@@ -132,7 +136,7 @@ const ItemDetails = () => {
           <ShieldCheck className="w-5 h-5 text-emerald-400 flex-shrink-0" />
           <div>
             <span className="text-xs font-sans font-bold uppercase tracking-widest text-emerald-300 block">
-              STATUS: APPROVED (Homologado e Verificado)
+              Status: Verificado · Passaporte Digital Homologado
             </span>
             <p className="text-xs text-emerald-200/80 font-sans mt-0.5">
               Originalidade, procedência e estado de conservação conferidos e homologados com Passaporte Digital ativo.
@@ -155,7 +159,7 @@ const ItemDetails = () => {
         <div className="flex flex-col justify-center">
           <div className="flex items-center justify-between mb-4">
             <p className="text-sm font-sans tracking-widest uppercase text-[#A69076]">
-              {item.category}
+              {displayCategory}
             </p>
             <span
               className={`text-[10px] uppercase tracking-widest font-sans font-bold px-2.5 py-1 rounded border ${
@@ -166,13 +170,13 @@ const ItemDetails = () => {
                   : 'bg-gray-800 text-gray-400 border-gray-700'
               }`}
             >
-              {isPending ? 'UNDER VALIDATION' : isApproved ? 'APPROVED' : item.status}
+              {isPending ? 'Em análise' : isApproved ? 'Verificado' : item.status}
             </span>
           </div>
 
           <h1 className="text-4xl md:text-5xl font-serif mb-6 text-white">{item.name}</h1>
           <p className="text-2xl font-sans text-gray-200 mb-8">
-            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.price)}
+            {formattedPrice}
           </p>
 
           <div className="prose prose-invert font-sans text-gray-400 mb-12">
@@ -198,7 +202,7 @@ const ItemDetails = () => {
                     isPending ? 'text-amber-400' : isApproved ? 'text-emerald-400' : 'text-gray-300'
                   }`}
                 >
-                  {isPending ? 'UNDER VALIDATION' : isApproved ? 'APPROVED' : item.status}
+                  {isPending ? 'Em análise' : isApproved ? 'Verificado' : item.status}
                 </span>
               </div>
               <div className="flex justify-between border-b border-gray-800 pb-2">
@@ -220,7 +224,7 @@ const ItemDetails = () => {
             </div>
 
             <Link
-              to={`/passaporte/${item.shareToken || item.passportId}?origem=link_compartilhado`}
+              to={`/passaporte/${item.shareToken || item.passportId}?origem=catalogo`}
               className="mt-6 w-full flex items-center justify-center gap-2 bg-white text-black py-3 font-sans uppercase tracking-widest text-xs font-medium hover:bg-gray-200 transition-colors rounded"
             >
               <FileText className="w-4 h-4" /> Acessar Passaporte Completo
@@ -228,15 +232,30 @@ const ItemDetails = () => {
           </div>
 
           <div className="flex gap-4">
-            <button className="flex-1 bg-[#A69076] text-black py-4 font-sans uppercase tracking-widest text-sm font-semibold hover:bg-[#b8a287] transition-colors rounded">
+            <button
+              type="button"
+              onClick={() => setIsEscrowOpen(true)}
+              className="flex-1 bg-[#A69076] text-black py-4 font-sans uppercase tracking-widest text-sm font-semibold hover:bg-[#b8a287] transition-colors rounded cursor-pointer"
+            >
               Enviar Proposta
             </button>
-            <button className="px-6 border border-gray-600 hover:border-white transition-colors flex items-center justify-center rounded">
+            <Link
+              to="/como-funciona"
+              className="px-6 border border-gray-600 hover:border-white transition-colors flex items-center justify-center rounded"
+              title="Saiba como funciona a custódia Lastro"
+              aria-label="Como funciona a custódia Lastro"
+            >
               <Info className="w-5 h-5 text-gray-400" />
-            </button>
+            </Link>
           </div>
         </div>
       </div>
+
+      <EscrowModal
+        isOpen={isEscrowOpen}
+        onClose={() => setIsEscrowOpen(false)}
+        price={formattedPrice}
+      />
     </div>
   );
 };
