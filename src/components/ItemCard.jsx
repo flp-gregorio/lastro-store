@@ -3,24 +3,34 @@ import { Link } from 'react-router-dom';
 import { ShieldCheck } from 'lucide-react';
 
 const ItemCard = ({ item }) => {
+  const s = String(item.status || '').toUpperCase();
+  const isPending = s === 'UNDER_VALIDATION' || s === 'EM REVISÃO' || s === 'PENDENTE';
+  const isApproved = s === 'APPROVED' || s === 'VERIFICADO' || s === 'DISPONÍVEL' || s === 'VALIDO';
+
   return (
-    <Link to={`/peca/${item.id}`} className="group block">
+    <Link to={`/peca/${item.id || item.passportId}`} className="group block">
       <div className="relative aspect-[4/5] overflow-hidden bg-[#111] mb-6">
         <img 
           src={item.image} 
           alt={item.name} 
           className="object-cover w-full h-full transform group-hover:scale-105 transition-transform duration-700 ease-out opacity-80 group-hover:opacity-100"
         />
-        
-        {/* Passaporte Digital Badge */}
-        {item.status === 'valido' && (
-          <div className="absolute top-4 left-4 bg-black/50 backdrop-blur-md px-3 py-1.5 flex items-center gap-2 border border-white/10">
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            <span className="text-xs tracking-widest uppercase font-sans font-medium text-white/90">
-              Passaporte Verificado
-            </span>
+        {/* Status badge */}
+        {isPending ? (
+          <div className="absolute top-4 right-4 text-[9px] uppercase tracking-widest font-sans font-bold px-2.5 py-1 rounded border bg-amber-500/25 text-amber-300 border-amber-500/40 backdrop-blur-md shadow-lg flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+            UNDER VALIDATION
           </div>
-        )}
+        ) : isApproved ? (
+          <div className="absolute top-4 right-4 text-[9px] uppercase tracking-widest font-sans font-semibold px-2.5 py-1 rounded border bg-emerald-500/25 text-emerald-300 border-emerald-500/40 backdrop-blur-md shadow-lg flex items-center gap-1.5">
+            <ShieldCheck className="w-3 h-3 text-emerald-400" />
+            APPROVED
+          </div>
+        ) : item.status ? (
+          <div className="absolute top-4 right-4 text-[9px] uppercase tracking-widest font-sans px-2 py-1 rounded border bg-gray-500/20 text-gray-400 border-gray-500/30 backdrop-blur-md">
+            {item.status}
+          </div>
+        ) : null}
       </div>
 
       <div className="space-y-2">

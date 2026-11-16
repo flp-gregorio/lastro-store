@@ -14,7 +14,8 @@ const loginSchema = z.object({
   origin: z.enum(VALID_ORIGINS).optional(),
   name: z.string().trim().optional(),
   role: z
-    .enum(['Visitante', 'Comprador', 'Proprietário', 'Vendedor', 'Perito', 'Equipe Lastro'])
+    .string()
+    .trim()
     .optional()
 });
 

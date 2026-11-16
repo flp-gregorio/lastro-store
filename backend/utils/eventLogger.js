@@ -57,16 +57,17 @@ const nonInferredField = (val) => {
 /**
  * Formata uma peça/passaporte garantindo todos os campos essenciais do P0 (RF03, RF15, RNF08)
  */
-const formatPecaPassport = (item, baseUrl = 'http://localhost:5173') => {
+const formatPecaPassport = (item, baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173') => {
+  const cleanBase = (baseUrl || '').replace(/\/+$/, '');
   const passportId = item.passport_id || item.passportId || 'Não informado';
   const shareToken = item.share_token || item.shareToken || null;
   const shareStatus = item.share_status || item.shareStatus || 'active';
   const history = Array.isArray(item.history) ? item.history : [];
 
   const shareIdentifier = shareToken || passportId;
-  const shareUrlVendedor = `${baseUrl}/passaporte/${shareIdentifier}?origem=link_vendedor`;
-  const shareUrlCompartilhado = `${baseUrl}/passaporte/${shareIdentifier}?origem=link_compartilhado`;
-  const qrTargetUrl = `${baseUrl}/passaporte/${shareIdentifier}?origem=qr`;
+  const shareUrlVendedor = `${cleanBase}/passaporte/${shareIdentifier}?origem=link_vendedor`;
+  const shareUrlCompartilhado = `${cleanBase}/passaporte/${shareIdentifier}?origem=link_compartilhado`;
+  const qrTargetUrl = `${cleanBase}/passaporte/${shareIdentifier}?origem=qr`;
   const qrCodeImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrTargetUrl)}`;
 
   return {

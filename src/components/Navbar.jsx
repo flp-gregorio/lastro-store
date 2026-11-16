@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, X, User, Heart, Clock, Bell } from 'lucide-react';
+import { Search, X, User, Bell, ShieldCheck, Tag } from 'lucide-react';
 
 const CATEGORIES = [
+  'WATCHES',
+  'RELÓGIOS',
   'ARTE',
   'COLECIONÁVEIS',
   'MOBILIÁRIO',
-  'RELÓGIOS',
   'AUTOMOTIVO',
   'DIVERSOS'
 ];
@@ -15,7 +16,30 @@ const Navbar = () => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [user, setUser] = useState(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const checkUser = () => {
+      const stored = localStorage.getItem('user');
+      if (stored) {
+        try {
+          setUser(JSON.parse(stored));
+        } catch {}
+      } else {
+        setUser(null);
+      }
+    };
+    checkUser();
+    window.addEventListener('storage', checkUser);
+    return () => window.removeEventListener('storage', checkUser);
+  }, []);
+
+  const isStoreRep =
+    user?.role === 'EquipeLastro' ||
+    user?.role === 'RepresentanteLoja' ||
+    user?.role === 'Loja' ||
+    user?.role === 'Admin';
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -33,7 +57,7 @@ const Navbar = () => {
           {/* Left - Logo */}
           <Link to="/" className="flex items-center space-x-3 md:space-x-4">
             <div className="flex flex-col justify-center items-center">
-              <h1 className="text-white text-sm md:text-lg tracking-[0.3em] uppercase font-serif leading-tight tracking-wider antialiased">
+              <h1 className="text-white text-sm md:text-lg tracking-[0.3em] uppercase font-serif leading-tight antialiased">
                 LASTRO
               </h1>
               <span className="text-gray-500 text-[8px] md:text-[9px] tracking-[0.3em] uppercase mt-0.5">
@@ -43,7 +67,7 @@ const Navbar = () => {
           </Link>
 
           {/* Center - Category Filter Links */}
-          <ul className="hidden lg:flex space-x-6 xl:space-x-8">
+          <ul className="hidden xl:flex space-x-6">
             {CATEGORIES.map((cat) => (
               <li key={cat}>
                 <Link
@@ -57,7 +81,7 @@ const Navbar = () => {
           </ul>
 
           {/* Right - Actions */}
-          <div className="flex items-center space-x-4 md:space-x-5">
+          <div className="flex items-center space-x-3 md:space-x-4">
             {/* Search Trigger Button */}
             <button
               onClick={() => setIsSearchOpen(!isSearchOpen)}
@@ -68,58 +92,75 @@ const Navbar = () => {
               <Search className="h-4 w-4 md:h-5 md:w-5" />
             </button>
 
-            {/* Profile / Private Access Link */}
+            {/* Category Tracking Link (Stage 2) */}
+            <Link
+              to="/categorias-rastreadas"
+              className="text-gray-300 hover:text-[#A69076] hidden md:flex items-center gap-1.5 transition-colors px-2 py-1 text-[11px] uppercase tracking-wider font-sans"
+              title="Rastreamento de Categorias"
+            >
+              <Tag className="w-3.5 h-3.5 text-[#A69076]" />
+              Rastreamento
+            </Link>
+
+            {/* Notifications Bell (Stage 4 & Stage 6) */}
+            <Link
+              to="/notificacoes"
+              className="relative text-gray-300 hover:text-[#A69076] p-1.5 transition-colors"
+              title="Notificações"
+            >
+              <Bell className="h-4 w-4 md:h-5 md:w-5" />
+              <span className="absolute top-1 right-1 w-2 h-2 bg-[#A69076] rounded-full"></span>
+            </Link>
+
+            {/* Store Representative Verification Link (Stage 5) */}
+            {isStoreRep && (
+              <Link
+                to="/admin/verificacao"
+                className="hidden md:flex items-center gap-1.5 bg-[#A69076]/20 border border-[#A69076]/60 text-[#A69076] hover:bg-[#A69076] hover:text-black transition-colors px-2.5 py-1 text-[10px] md:text-xs uppercase tracking-wider font-sans font-semibold rounded"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                Curadoria
+              </Link>
+            )}
+
+            {/* Profile / Dashboard Link */}
             <Link
               to="/dashboard"
-              className="text-white hover:text-[#A69076] hidden md:block transition-colors duration-300 p-1"
+              className="text-white hover:text-[#A69076] hidden sm:block transition-colors p-1"
               title="Painel"
             >
               <User className="h-4 w-4 md:h-5 md:w-5" />
             </Link>
 
-            {/* Hábito - Lista de Desejos (RF06) */}
-            <Link
-              to="/wishlist"
-              className="text-white hover:text-[#A69076] hidden md:block transition-colors duration-300 p-1"
-              title="Lista de Desejos"
-            >
-              <Heart className="h-4 w-4 md:h-5 md:w-5" />
-            </Link>
-
-            {/* Hábito - Lembretes (RF09) */}
-            <Link
-              to="/lembretes"
-              className="text-white hover:text-[#A69076] hidden md:block transition-colors duration-300 p-1"
-              title="Lembretes de Conservação"
-            >
-              <Clock className="h-4 w-4 md:h-5 md:w-5" />
-            </Link>
-
-            {/* Hábito - Notificações (RF14) */}
-            <Link
-              to="/notificacoes"
-              className="text-white hover:text-[#A69076] hidden md:block transition-colors duration-300 p-1"
-              title="Notificações"
-            >
-              <Bell className="h-4 w-4 md:h-5 md:w-5" />
-            </Link>
-
-            <Link
-              to="/login"
-              className="border border-[#A69076] text-[#A69076] px-3 py-1.5 md:px-5 md:py-2 text-[10px] md:text-xs tracking-widest uppercase hover:bg-[#A69076] hover:text-black transition-colors duration-300 font-sans"
-            >
-              ACESSO PRIVADO
-            </Link>
+            {user ? (
+              <Link
+                to="/dashboard"
+                className="border border-[#A69076] text-[#A69076] px-3 py-1.5 text-[10px] md:text-xs tracking-widest uppercase hover:bg-[#A69076] hover:text-black transition-colors duration-300 font-sans truncate max-w-[120px]"
+              >
+                {user.name?.split(' ')[0] || 'PAINEL'}
+              </Link>
+            ) : (
+              <Link
+                to="/login"
+                className="border border-[#A69076] text-[#A69076] px-3 py-1.5 md:px-4 md:py-2 text-[10px] md:text-xs tracking-widest uppercase hover:bg-[#A69076] hover:text-black transition-colors duration-300 font-sans"
+              >
+                ENTRAR
+              </Link>
+            )}
 
             {/* Mobile Menu Button */}
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="text-white hover:text-[#A69076] lg:hidden transition-colors duration-300 p-1"
+              className="text-white hover:text-[#A69076] lg:hidden transition-colors p-1"
               aria-label="Menu"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
+              {isMobileMenuOpen ? (
+                <X className="h-6 w-6" />
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              )}
             </button>
           </div>
         </div>
@@ -135,14 +176,13 @@ const Navbar = () => {
                   autoFocus
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Pesquisar por peça, categoria, perito ou código do passaporte..."
+                  placeholder="Pesquisar por Watches, Relógios, Arte, perito ou código do passaporte..."
                   className="w-full bg-[#141414] border border-[#2a2a2a] text-white pl-12 pr-12 py-3 text-sm font-sans focus:outline-none focus:border-[#A69076] transition-colors"
                 />
                 <button
                   type="button"
                   onClick={() => setIsSearchOpen(false)}
-                  className="absolute right-3 p-1 text-gray-500 hover:text-white transition-colors"
-                  aria-label="Fechar busca"
+                  className="absolute right-4 text-gray-400 hover:text-white"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -154,16 +194,54 @@ const Navbar = () => {
         {/* Mobile Navigation Drawer */}
         {isMobileMenuOpen && (
           <div className="lg:hidden border-t border-[#1e1e1e] bg-[#0c0c0c] px-6 py-6 space-y-4">
-            <p className="text-[10px] uppercase tracking-widest text-gray-500 font-sans">
-              Categorias do Acervo
-            </p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-3 pb-4 border-b border-gray-800">
+              <Link
+                to="/catalogo"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="block text-white hover:text-[#A69076] text-sm uppercase tracking-widest font-sans"
+              >
+                Catálogo Completo
+              </Link>
+              <Link
+                to="/categorias-rastreadas"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="block text-[#A69076] text-sm uppercase tracking-widest font-sans"
+              >
+                Rastreamento de Categorias
+              </Link>
+              <Link
+                to="/notificacoes"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="block text-white hover:text-[#A69076] text-sm uppercase tracking-widest font-sans"
+              >
+                Notificações
+              </Link>
+              <Link
+                to="/dashboard/nova-peca"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="block text-white hover:text-[#A69076] text-sm uppercase tracking-widest font-sans"
+              >
+                Submeter Peça à Curadoria
+              </Link>
+              {isStoreRep && (
+                <Link
+                  to="/admin/verificacao"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="block text-[#A69076] text-sm uppercase tracking-widest font-sans font-semibold"
+                >
+                  Portal de Curadoria (Person C)
+                </Link>
+              )}
+            </div>
+
+            <div className="pt-2 space-y-2">
+              <p className="text-[10px] uppercase tracking-widest text-gray-500 font-sans mb-2">Categorias</p>
               {CATEGORIES.map((cat) => (
                 <Link
                   key={cat}
                   to={`/catalogo?categoria=${encodeURIComponent(cat)}`}
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className="text-gray-300 hover:text-[#A69076] text-xs uppercase tracking-wider py-1 font-sans transition-colors"
+                  className="block text-gray-400 hover:text-white text-xs uppercase tracking-wider font-sans py-1"
                 >
                   {cat}
                 </Link>

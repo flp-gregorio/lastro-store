@@ -257,7 +257,7 @@ CREATE INDEX IF NOT EXISTS idx_transferencias_para_usuario ON public.transferenc
 CREATE TABLE IF NOT EXISTS public.notificacoes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id TEXT NOT NULL,
-  tipo TEXT NOT NULL CHECK (tipo IN ('primeiro_investimento', 'peca_compatível', 'laudo_concluido', 'lembrete_conservacao', 'alerta_generico')),
+  tipo TEXT NOT NULL CHECK (tipo IN ('peca_pendente', 'peca_aprovada', 'peca_cadastrada', 'primeiro_investimento', 'peca_compatível', 'laudo_concluido', 'lembrete_conservacao', 'alerta_generico')),
   titulo TEXT NOT NULL,
   mensagem TEXT NOT NULL,
   peca_id BIGINT REFERENCES public.pecas(id) ON DELETE SET NULL,
@@ -270,4 +270,22 @@ CREATE TABLE IF NOT EXISTS public.notificacoes (
 CREATE INDEX IF NOT EXISTS idx_notificacoes_user_id ON public.notificacoes (user_id);
 CREATE INDEX IF NOT EXISTS idx_notificacoes_user_lida ON public.notificacoes (user_id, lida);
 CREATE INDEX IF NOT EXISTS idx_notificacoes_tipo ON public.notificacoes (tipo);
+
+-- 5.8 Tabela `categorias_rastreadas` · Rastreamento de categorias de interesse pelo colecionador
+CREATE TABLE IF NOT EXISTS public.categorias_rastreadas (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id TEXT NOT NULL,
+  categoria TEXT NOT NULL,
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (user_id, categoria)
+);
+
+CREATE INDEX IF NOT EXISTS idx_categorias_rastreadas_user_id ON public.categorias_rastreadas (user_id);
+CREATE INDEX IF NOT EXISTS idx_categorias_rastreadas_categoria ON public.categorias_rastreadas (categoria);
+
+-- 6. Políticas de RLS
+ALTER TABLE public.pecas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.categorias_rastreadas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notificacoes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.preferencias_notificacao ENABLE ROW LEVEL SECURITY;
 

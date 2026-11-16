@@ -25,3 +25,6 @@ dist
 *.sln
 *.sw?
 .aider*
+dre_extracted.txt
+extract_pdf.py
+.gitignore

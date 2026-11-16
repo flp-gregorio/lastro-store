@@ -1,16 +1,18 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { Search, Filter, X, ArrowLeft } from 'lucide-react';
 import ItemCard from '../components/ItemCard';
 import { apiUrl } from '../api';
 
 const CATEGORIES = [
   'TODOS',
+  'WATCHES',
+  'RELÓGIOS',
   'ARTE',
   'COLECIONÁVEIS',
   'MOBILIÁRIO',
-  'RELÓGIOS',
   'AUTOMOTIVO',
+  'JOIAS',
   'DIVERSOS'
 ];
 
@@ -83,11 +85,15 @@ const Catalog = () => {
   // Filter items in memory based on category and query
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
-      // Category filter (case and accent insensitive)
+      // Category filter (case and accent insensitive, with Watches/Relógios equivalence)
       if (activeCategory && activeCategory !== 'TODOS') {
         const itemCat = normalizeText(item.category);
         const filterCat = normalizeText(activeCategory);
-        if (itemCat !== filterCat && !itemCat.includes(filterCat)) {
+        const isWatchAlias =
+          (filterCat === 'watches' || filterCat === 'relogios') &&
+          (itemCat === 'watches' || itemCat === 'relogios');
+
+        if (!isWatchAlias && itemCat !== filterCat && !itemCat.includes(filterCat)) {
           return false;
         }
       }

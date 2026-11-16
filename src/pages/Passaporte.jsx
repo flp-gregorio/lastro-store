@@ -24,6 +24,7 @@ import {
   Link2,
   RotateCcw,
 } from 'lucide-react';
+import { apiUrl } from '../api';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -320,7 +321,7 @@ const SharePanel = ({ passport, onRevoke }) => {
     if (!confirm('Revogar o link tornará este passaporte inacessível publicamente. Continuar?')) return;
     setRevoking(true);
     try {
-      const res = await fetch(`${API_BASE}/passaportes/${passport.passportId}/revogar`, {
+      const res = await fetch(apiUrl(`/api/passaportes/${passport.passportId}/revogar`), {
         method: 'POST',
       });
       if (res.ok) {
@@ -424,7 +425,7 @@ const Passaporte = () => {
       const anonId = sessionStorage.getItem('lastro_anon_id');
       if (anonId) params.set('anonymousId', anonId);
 
-      const res = await fetch(`${API_BASE}/passaportes/${identifier}?${params.toString()}`);
+      const res = await fetch(apiUrl(`/api/passaportes/${identifier}?${params.toString()}`));
       const json = await res.json();
 
       if (res.status === 404) {

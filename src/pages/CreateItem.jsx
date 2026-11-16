@@ -1,10 +1,9 @@
 import React, { useState, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { apiUrl } from '../api';
 import {
   ArrowLeft,
   Upload,
-  CheckCircle2,
   Link2,
   Image as ImageIcon,
   X,
@@ -17,22 +16,23 @@ import {
 } from 'lucide-react';
 
 const CATEGORIES = [
+  'Watches',
+  'Relógios',
   'Arte',
   'Colecionáveis',
   'Mobiliário',
-  'Relógios',
   'Automotivo',
   'Joias',
   'Diversos'
 ];
 
 const CreateItem = () => {
-  const navigate = useNavigate();
   const fileInputRef = useRef(null);
   const docInputRef = useRef(null);
 
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [createdPiece, setCreatedPiece] = useState(null);
   const [imageMode, setImageMode] = useState('upload'); // 'upload' | 'url'
   const [imagePreview, setImagePreview] = useState('');
   const [attachedDocs, setAttachedDocs] = useState([]); // Array de { name, size, type, data }
@@ -98,8 +98,6 @@ const CreateItem = () => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
 
-    const validDocs = [];
-
     files.forEach((file) => {
       const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
       const isImg = file.type.startsWith('image/');
@@ -143,19 +141,22 @@ const CreateItem = () => {
     const numericPrice = formData.price ? parseFloat(formData.price) : 0;
     const finalImage = formData.image.trim() || 'https://images.unsplash.com/photo-1541961017774-22349e4a1262?q=80&w=1000&auto=format&fit=crop';
 
+    const ownerId = localStorage.getItem('userId');
+
     // DRE v2.0: Submetido para perícia e curadoria da equipe Lastro.
     const payload = {
       name: formData.name.trim(),
+      ownerId,
       category: formData.category,
       price: numericPrice,
       description: formData.description.trim(),
       image: finalImage,
       provenance: formData.provenance.trim() || 'Não informado pelo solicitante',
       conservationState: formData.ownerConservationNotes,
-      status: 'em revisão',
-      expertName: 'Aguardando atribuição de perito credenciado',
-      expertDate: 'Pendente de laudo',
-      isPublished: false,
+      status: 'UNDER_VALIDATION',
+      expertName: 'Aguardando Curadoria',
+      expertDate: 'Pendente',
+      isPublished: true,
       documentsCount: attachedDocs.length,
       documentsSummary: attachedDocs.map((d) => d.name),
       history: [
@@ -169,9 +170,13 @@ const CreateItem = () => {
     };
 
     try {
+      const token = localStorage.getItem('token');
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
       const response = await fetch(apiUrl('/api/pecas'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(payload)
       });
 
@@ -180,6 +185,8 @@ const CreateItem = () => {
         throw new Error(errorData.message || 'Falha ao submeter peça');
       }
 
+      const created = await response.json();
+      setCreatedPiece(created);
       setSubmitted(true);
     } catch (error) {
       console.error(error);
@@ -226,12 +233,30 @@ const CreateItem = () => {
             </ul>
           </div>
 
-          <div className="pt-2">
+          <div className="bg-amber-500/10 border border-amber-500/30 p-3.5 text-left font-sans text-xs rounded space-y-1">
+            <div className="flex items-center gap-2 text-amber-300 font-semibold tracking-wide uppercase text-[11px]">
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+              Status: UNDER VALIDATION
+            </div>
+            <p className="text-gray-300 text-[11px] leading-relaxed">
+              A peça já está disponível publicamente para consulta no catálogo enquanto aguarda a homologação da curadoria.
+            </p>
+          </div>
+
+          <div className="pt-2 flex flex-col sm:flex-row gap-3">
+            {createdPiece?.id && (
+              <Link
+                to={`/peca/${createdPiece.id}`}
+                className="flex-1 flex items-center justify-center gap-2 bg-[#A69076] text-black py-3 px-4 font-sans uppercase tracking-widest text-xs font-semibold hover:bg-[#b8a287] transition-colors rounded"
+              >
+                Ver Peça no Catálogo
+              </Link>
+            )}
             <Link
-              to="/dashboard"
-              className="w-full flex items-center justify-center gap-2 bg-white text-black py-3.5 px-6 font-sans uppercase tracking-widest text-xs font-semibold hover:bg-gray-200 transition-colors"
+              to="/catalogo"
+              className="flex-1 flex items-center justify-center gap-2 bg-white/10 text-white py-3 px-4 font-sans uppercase tracking-widest text-xs font-semibold hover:bg-white/20 transition-colors rounded"
             >
-              Voltar ao Painel
+              Explorar Catálogo
             </Link>
           </div>
         </div>

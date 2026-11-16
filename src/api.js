@@ -1,13 +1,26 @@
+const rawUrl = import.meta.env.VITE_API_URL;
 
-const configuredUrl =
-  import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const isBrowser = typeof window !== 'undefined';
+const isLocalhost =
+  isBrowser &&
+  (window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1');
 
-const API_BASE_URL = (
-  /^https?:\/\//i.test(configuredUrl)
-    ? configuredUrl
-    : `https://${configuredUrl}`
-).replace(/\/+$/, '');
+let API_BASE_URL = '';
+
+if (rawUrl) {
+  API_BASE_URL = (
+    /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`
+  ).replace(/\/+$/, '');
+} else if (!isBrowser || isLocalhost) {
+  API_BASE_URL = 'http://localhost:3000';
+} else {
+  // Production fallback if VITE_API_URL is omitted (uses relative path)
+  API_BASE_URL = '';
+}
 
 export const apiUrl = (path) => {
-  return `${API_BASE_URL}${path.startsWith('/') ? '' : '/'}${path}`;
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  if (!API_BASE_URL) return cleanPath;
+  return `${API_BASE_URL}${cleanPath}`;
 };

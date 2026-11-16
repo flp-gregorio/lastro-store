@@ -10,77 +10,105 @@ const {
   formatPecaPassport,
   logEvent
 } = require('../utils/eventLogger');
+const { getUsersTrackingCategory } = require('./categorias-rastreadas.routes');
+const { createNotification } = require('./notificacoes.routes');
+const { requireStoreRole } = require('../middlewares/auth');
 
 const getFrontendBaseUrl = () => process.env.FRONTEND_URL || 'http://localhost:5173';
 
-// GET /api/pecas - Listar todas as peças diretamente do Supabase
+// In-memory fallback cache for pieces
+const localPecas = [];
+
+// GET /api/pecas - Listar todas as peças
 router.get('/', async (req, res) => {
   try {
-    if (!supabase) {
-      return res.status(500).json({ message: 'Supabase não está configurado no .env' });
+    let pieces = [];
+
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('pecas')
+        .select('*')
+        .order('id', { ascending: false });
+
+      if (!error && Array.isArray(data)) {
+        pieces = data;
+      } else if (error) {
+        console.error('[Supabase GET /pecas Error]:', error.message);
+      }
     }
 
-    const { data, error } = await supabase
-      .from('pecas')
-      .select('*')
-      .order('id', { ascending: false });
-
-    if (error) {
-      console.error('[Supabase GET /pecas Error]:', error.message);
-      return res.status(500).json({ message: 'Erro ao consultar peças', error: error.message });
+    // Mescla com peças em cache local para garantir disponibilidade e refletir atualizações recentes
+    const map = new Map();
+    for (const p of pieces) {
+      map.set(String(p.id), p);
+    }
+    for (const p of localPecas) {
+      if (map.has(String(p.id))) {
+        map.set(String(p.id), { ...map.get(String(p.id)), ...p });
+      } else {
+        map.set(String(p.id), p);
+      }
     }
 
+    const all = Array.from(map.values()).sort((a, b) => Number(b.id) - Number(a.id));
     const baseUrl = getFrontendBaseUrl();
-    res.json(data.map((item) => formatPecaPassport(item, baseUrl)));
+    res.json(all.map((item) => formatPecaPassport(item, baseUrl)));
   } catch (err) {
     console.error('Erro inesperado ao listar peças:', err);
     res.status(500).json({ message: 'Erro interno ao consultar peças' });
   }
 });
 
-// GET /api/pecas/:id - Buscar peça específica (por id, passport_id ou share_token) no Supabase
+// GET /api/pecas/:id - Buscar peça específica
 router.get('/:id', async (req, res) => {
   const { id } = req.params;
 
   try {
-    if (!supabase) {
-      return res.status(500).json({ message: 'Supabase não está configurado no .env' });
-    }
-
     const isNumeric = /^\d+$/.test(id);
     let data = null;
-    let error = null;
 
-    if (isNumeric) {
-      const result = await supabase
-        .from('pecas')
-        .select('*')
-        .eq('id', Number(id))
-        .maybeSingle();
-      data = result.data;
-      error = result.error;
-    } else {
-      const byPassport = await supabase
-        .from('pecas')
-        .select('*')
-        .eq('passport_id', id)
-        .maybeSingle();
-      data = byPassport.data;
-      error = byPassport.error;
-
-      if (!data && !error) {
-        const byToken = await supabase
+    if (supabase) {
+      if (isNumeric) {
+        const result = await supabase
           .from('pecas')
           .select('*')
-          .eq('share_token', id)
+          .eq('id', Number(id))
           .maybeSingle();
-        data = byToken.data;
+        data = result.data;
+      } else {
+        const byPassport = await supabase
+          .from('pecas')
+          .select('*')
+          .eq('passport_id', id)
+          .maybeSingle();
+        data = byPassport.data;
+
+        if (!data) {
+          const byToken = await supabase
+            .from('pecas')
+            .select('*')
+            .eq('share_token', id)
+            .maybeSingle();
+          data = byToken.data;
+        }
       }
     }
 
-    if (error) {
-      console.error('[Supabase GET /pecas/:id Error]:', error.message);
-      return res.status(500).json({ message: 'Erro ao buscar peça', error: error.message });
+    // Mescla com atualizações locais caso existam
+    if (data) {
+      const localUpdated = localPecas.find(
+        (p) => String(p.id) === String(data.id) || p.passport_id === data.passport_id
+      );
+      if (localUpdated) {
+        data = { ...data, ...localUpdated };
+      }
+    } else {
+      data = localPecas.find(
+        (p) =>
+          String(p.id) === String(id) ||
+          p.passport_id === id ||
+          p.share_token === id
+      );
     }
 
     if (!data) {
@@ -94,7 +122,7 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST /api/pecas - Cadastrar nova peça no Supabase com validação Zod e campos P0 do Passaporte
+// POST /api/pecas - Cadastrar nova peça (Stage 3) e notificar usuários rastreadores (Stage 4)
 router.post('/', validate(createPecaSchema), async (req, res) => {
   const {
     name,
@@ -112,87 +140,267 @@ router.post('/', validate(createPecaSchema), async (req, res) => {
     isPublished
   } = req.body;
 
-  if (!supabase) {
-    return res.status(500).json({ message: 'Supabase não está configurado no .env' });
-  }
-
   // RNF11: Identificadores não enumeráveis
   const generatedPassportId = generatePassportId();
   const generatedShareToken = generateShareToken();
 
-  // RF03: Campos sem informação ficam como 'Não informado' sem inferência
   const fullPecaPayload = {
     name,
     category,
     price: price ?? 0,
     description: description || '',
     image: image || 'https://images.unsplash.com/photo-1541961017774-22349e4a1262?q=80&w=1000&auto=format&fit=crop',
-    status: 'em revisão',
+    status: 'UNDER_VALIDATION',
     passport_id: generatedPassportId,
-    expert_name: nonInferredField(expertName),
-    expert_date: nonInferredField(expertDate),
+    expert_name: nonInferredField(expertName || 'Aguardando Curadoria'),
+    expert_date: nonInferredField(expertDate || 'Pendente'),
     owner_id: ownerId || null,
     provenance: nonInferredField(provenance),
     conservation_state: nonInferredField(conservationState),
     conservation_score: conservationScore ?? null,
-    history: Array.isArray(history) ? history : [],
+    history: Array.isArray(history) && history.length > 0 ? history : [
+      {
+        date: String(new Date().getFullYear()),
+        title: 'Submissão de Dossiê para Curadoria',
+        details: 'Peça submetida pelo proprietário para conferência documental e perícia técnica.',
+        verifiedBy: 'Triagem Lastro'
+      }
+    ],
     share_token: generatedShareToken,
     share_status: 'active',
     is_published: isPublished !== undefined ? isPublished : true
   };
 
   try {
-    let { data, error } = await supabase
-      .from('pecas')
-      .insert([fullPecaPayload])
-      .select()
-      .single();
+    let createdPiece = null;
 
-    if (error && error.message && error.message.includes('column')) {
-      console.warn('[Supabase Schema Fallback]: Inserindo apenas colunas v1 até que schema_p0_dre_v2.sql seja executado.');
-      const legacyPayload = {
-        name,
-        category,
-        price: price ?? 0,
-        description: description || '',
-        image: fullPecaPayload.image,
-        status: 'em revisão',
-        passport_id: generatedPassportId,
-        expert_name: nonInferredField(expertName),
-        expert_date: nonInferredField(expertDate)
-      };
-
-      const legacyResult = await supabase
+    if (supabase) {
+      let { data, error } = await supabase
         .from('pecas')
-        .insert([legacyPayload])
+        .insert([fullPecaPayload])
         .select()
         .single();
 
-      data = legacyResult.data ? { ...fullPecaPayload, ...legacyResult.data } : null;
-      error = legacyResult.error;
+      if (error && error.message && error.message.includes('column')) {
+        console.warn('[Supabase Schema Fallback]: Tentando inserção com colunas básicas');
+        const legacyPayload = {
+          name,
+          category,
+          price: price ?? 0,
+          description: description || '',
+          image: fullPecaPayload.image,
+          status: 'UNDER_VALIDATION',
+          passport_id: generatedPassportId,
+          expert_name: fullPecaPayload.expert_name,
+          expert_date: fullPecaPayload.expert_date
+        };
+
+        const legacyResult = await supabase
+          .from('pecas')
+          .insert([legacyPayload])
+          .select()
+          .single();
+
+        data = legacyResult.data ? { ...fullPecaPayload, ...legacyResult.data } : null;
+      }
+
+      if (data) {
+        createdPiece = data;
+      }
     }
 
-    if (error) {
-      console.error('[Supabase POST /pecas Error]:', error.message);
-      return res.status(400).json({ message: 'Erro ao cadastrar peça no banco', error: error.message });
+    if (!createdPiece) {
+      createdPiece = {
+        id: localPecas.length + 100,
+        ...fullPecaPayload,
+        created_at: new Date().toISOString()
+      };
     }
+
+    localPecas.unshift(createdPiece);
 
     // RF19: Registra evento `peca_cadastrada`
     await logEvent({
       eventName: 'peca_cadastrada',
-      pecaId: data.id,
-      passportId: data.passport_id,
+      pecaId: createdPiece.id,
+      passportId: createdPiece.passport_id,
       userId: ownerId || null,
       origin: 'direto',
       isOwner: true,
-      metadata: { category: data.category }
+      metadata: { category: createdPiece.category, status: createdPiece.status }
     });
 
-    res.status(201).json(formatPecaPassport(data, getFrontendBaseUrl()));
+    // =========================================================================
+    // STAGE 4: Envio da Notificação Inicial para usuários que rastreiam a categoria (Person B)
+    // =========================================================================
+    try {
+      const trackingUserIds = await getUsersTrackingCategory(createdPiece.category);
+
+      for (const trackerUserId of trackingUserIds) {
+        // Envia notificação comunicando que nova peça da categoria foi submetida e aguarda validação
+        await createNotification({
+          userId: trackerUserId,
+          tipo: 'peca_pendente',
+          titulo: `Novo item em validação: ${createdPiece.name}`,
+          mensagem: `Um novo item da categoria "${createdPiece.category}" (${createdPiece.name}) foi submetido e está aguardando validação da curadoria.`,
+          pecaId: createdPiece.id,
+          passportId: createdPiece.passport_id,
+          acaoUrl: `/peca/${createdPiece.id}`
+        });
+      }
+    } catch (notifErr) {
+      console.error('[Stage 4 Notification Error]:', notifErr.message);
+    }
+
+    res.status(201).json(formatPecaPassport(createdPiece, getFrontendBaseUrl()));
   } catch (err) {
     console.error('Erro inesperado ao criar peça:', err);
     res.status(500).json({ message: 'Erro interno ao salvar peça' });
   }
+});
+
+// PATCH /api/pecas/:id/status - Aprovação e verificação por representante da loja (Person C - Stage 5)
+router.patch('/:id/status', requireStoreRole, async (req, res) => {
+  const { id } = req.params;
+  const requestedStatus = req.body.status || 'APPROVED';
+
+  try {
+    const isNumeric = /^\d+$/.test(id);
+    let peca = null;
+
+    if (supabase) {
+      if (isNumeric) {
+        const { data } = await supabase.from('pecas').select('*').eq('id', Number(id)).maybeSingle();
+        peca = data;
+      } else {
+        const { data } = await supabase.from('pecas').select('*').eq('passport_id', id).maybeSingle();
+        peca = data;
+      }
+    }
+
+    if (!peca) {
+      peca = localPecas.find((p) => String(p.id) === String(id) || p.passport_id === id);
+    }
+
+    if (!peca) {
+      return res.status(404).json({ message: 'Peça não encontrada para verificação' });
+    }
+
+    // Idempotência: Se já estiver aprovada, retorna sem gerar notificações duplicadas
+    if (peca.status === 'APPROVED' && requestedStatus === 'APPROVED') {
+      return res.json({
+        message: 'A peça já está aprovada.',
+        peca: formatPecaPassport(peca, getFrontendBaseUrl())
+      });
+    }
+
+    const expertName = req.body.expertName || 'Curadoria Lastro';
+    const expertDate = new Date().toLocaleDateString('pt-BR');
+    const updatedHistory = [
+      ...(Array.isArray(peca.history) ? peca.history : []),
+      {
+        date: String(new Date().getFullYear()),
+        title: 'Aprovação de Curadoria e Emissão de Passaporte',
+        details: 'Dossiê técnico e originalidade aprovados pela equipe credenciada da Lastro.',
+        verifiedBy: expertName
+      }
+    ];
+
+    const updatePayload = {
+      status: requestedStatus,
+      expert_name: expertName,
+      expert_date: expertDate,
+      history: updatedHistory,
+      updated_at: new Date().toISOString()
+    };
+
+    let updatedPeca = null;
+
+    if (supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('pecas')
+          .update(updatePayload)
+          .eq('id', peca.id)
+          .select()
+          .maybeSingle();
+
+        if (!error && data) {
+          updatedPeca = data;
+        }
+      } catch (dbErr) {
+        console.warn('[Supabase Update peca status Warning]:', dbErr.message);
+      }
+    }
+
+    if (!updatedPeca) {
+      updatedPeca = {
+        ...peca,
+        ...updatePayload
+      };
+    }
+
+    // Atualiza cache local
+    const localIdx = localPecas.findIndex((p) => String(p.id) === String(peca.id));
+    if (localIdx !== -1) {
+      localPecas[localIdx] = updatedPeca;
+    } else {
+      localPecas.unshift(updatedPeca);
+    }
+
+    // RF19: Registra evento `curadoria_decidida`
+    await logEvent({
+      eventName: 'curadoria_decidida',
+      pecaId: updatedPeca.id,
+      passportId: updatedPeca.passport_id,
+      userId: req.user?.id || null,
+      origin: 'direto',
+      isOwner: false,
+      metadata: { status: requestedStatus, expert: expertName }
+    });
+
+    // =========================================================================
+    // STAGE 6: Envio da Segunda Notificação (Aprovação) para Person B
+    // =========================================================================
+    if (requestedStatus === 'APPROVED') {
+      try {
+        const trackingUserIds = await getUsersTrackingCategory(updatedPeca.category);
+
+        for (const trackerUserId of trackingUserIds) {
+          await createNotification({
+            userId: trackerUserId,
+            tipo: 'peca_aprovada',
+            titulo: `Peça Verificada: ${updatedPeca.name}`,
+            mensagem: `A peça "${updatedPeca.name}" da categoria "${updatedPeca.category}" foi verificada e aprovada com sucesso pela Curadoria Lastro!`,
+            pecaId: updatedPeca.id,
+            passportId: updatedPeca.passport_id,
+            acaoUrl: `/peca/${updatedPeca.id}`
+          });
+        }
+      } catch (notifErr) {
+        console.error('[Stage 6 Notification Error]:', notifErr.message);
+      }
+    }
+
+    res.json({
+      message: 'Status da peça atualizado com sucesso!',
+      peca: formatPecaPassport(updatedPeca, getFrontendBaseUrl())
+    });
+  } catch (err) {
+    console.error('Erro ao atualizar status da peça:', err);
+    res.status(500).json({ message: 'Erro interno ao atualizar status da peça' });
+  }
+});
+
+// POST /api/pecas/:id/aprovar - Alias direto para aprovação de peça
+router.post('/:id/aprovar', requireStoreRole, async (req, res) => {
+  req.body.status = 'APPROVED';
+  // Reencaminha internamente para o handler de PATCH
+  const patchHandler = router.stack.find((layer) => layer.route && layer.route.path === '/:id/status' && layer.route.methods.patch);
+  if (patchHandler) {
+    return patchHandler.handle(req, res);
+  }
+  res.status(500).json({ message: 'Handler não disponível' });
 });
 
 module.exports = router;
