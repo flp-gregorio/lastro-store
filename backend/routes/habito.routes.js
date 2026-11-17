@@ -4,61 +4,67 @@ const supabase = require('../config/supabase');
 const validate = require('../middlewares/validate');
 const {
   registrarRespostaConviteSchema,
-  preferenciasAlertaCuradoriaSchema,
   notificarLaudoConcluidoSchema
 } = require('../schemas/habito.schema');
-const { logEvent } = require('../utils/eventLogger');
+const { logEvent, inMemoryEvents } = require('../utils/eventLogger');
+const { dispatchNotification } = require('../utils/notificationHelper');
 
-// POST /api/habito/convite-primeiro-investimento - Registra resposta ao convite (RF16)
+// POST /api/habito/convite-primeiro-investimento - Registra resposta ao convite (RF16 / Critério de Aceite 7 e 8)
 router.post('/convite-primeiro-investimento', validate(registrarRespostaConviteSchema), async (req, res) => {
   const { aceito, acao, passportId, pecaId, userId, anonymousId } = req.body;
 
   try {
-    if (!supabase) {
-      return res.status(500).json({ message: 'Supabase não está configurado no .env' });
-    }
-
     const userOrAnon = userId || anonymousId;
     if (!userOrAnon) {
       return res.status(400).json({ message: 'userId ou anonymousId é obrigatório' });
     }
 
-    const { error: notifError } = await supabase
-      .from('notificacoes')
-      .insert([{
-        user_id: userId || null,
-        tipo: aceito ? 'primeiro_investimento' : 'alerta_generico',
-        titulo: aceito ? 'Primeiro investimento registrado' : 'Convite dispensado',
-        mensagem: aceito
-          ? `Você iniciou seu primeiro investimento: ${acao || 'ação não especificada'}.`
-          : 'O convite foi dispensado. Você pode salvar peças ou criar listas a qualquer momento.',
-        peca_id: pecaId || null,
-        passport_id: passportId || null
-      }]);
-
-    if (notifError) {
-      console.warn('[Supabase POST /habito/convite Warning]:', notifError.message);
+    // Se aceitou, cria notificação de confirmação do primeiro investimento (RF16)
+    if (aceito) {
+      const acaoLabels = {
+        salvar_peca: 'Salvar peça na lista de desejos',
+        criar_lista: 'Criar lista de desejos',
+        registrar_peca_propria: 'Registrar peça própria no acervo'
+      };
+      await dispatchNotification({
+        userId: userOrAnon,
+        tipo: 'primeiro_investimento',
+        titulo: 'Primeiro investimento registrado na Lastro',
+        mensagem: `Ciclo de hábito iniciado: ${acaoLabels[acao] || acao || 'Investimento inicial'}. Agora você pode configurar alertas ou lembretes quando desejar.`,
+        pecaId: pecaId || null,
+        passportId: passportId || null,
+        acaoUrl: passportId ? `/passaporte/${passportId}?origem=alerta` : '/notificacoes',
+        respectPreferences: false
+      });
     }
 
+    // RF16 / B2: Conta como investimento o primeiro peca_salva, lista_criada ou peca_registrada
+    const eventMap = {
+      salvar_peca: 'peca_salva',
+      criar_lista: 'lista_criada',
+      registrar_peca_propria: 'peca_registrada'
+    };
+    const resolvedEvent = aceito ? eventMap[acao] || 'peca_salva' : 'sessao_iniciada';
+
     await logEvent({
-      eventName: aceito ? 'peca_salva' : 'alerta_desativado',
+      eventName: resolvedEvent,
       pecaId,
       passportId,
       userId,
       anonymousId,
-      origin: 'alerta',
+      origin: 'direto',
       isOwner: Boolean(userId),
       metadata: {
         acao: 'resposta_convite_primeiro_investimento',
         aceito,
-        acaoEscolhida: acao
+        acaoEscolhida: acao || 'dispensar'
       }
     });
 
     res.json({
       message: aceito
-        ? 'Convite aceito. Obrigado por iniciar seu primeiro investimento.'
-        : 'Convite dispensado com sucesso. Sem pressão, sem vergonha.',
+        ? 'Primeiro investimento registrado com sucesso.'
+        : 'Convite dispensado.',
       aceito,
       acao: aceito ? acao : null
     });
@@ -68,42 +74,34 @@ router.post('/convite-primeiro-investimento', validate(registrarRespostaConviteS
   }
 });
 
-// POST /api/habito/alerta-peca-compativel - Dispara alerta de peça compatível (RF10)
+// POST /api/habito/alerta-peca-compativel - Dispara alerta de peça compatível (RF10 / Critério de Aceite 9)
 router.post('/alerta-peca-compativel', async (req, res) => {
   const { userId, pecaId, passportId, titulo, mensagem, acaoUrl } = req.body;
 
   try {
-    if (!supabase) {
-      return res.status(500).json({ message: 'Supabase não está configurado no .env' });
+    if (!userId) {
+      return res.status(400).json({ message: 'userId é obrigatório' });
     }
 
-    const { data: prefs } = await supabase
-      .from('preferencias_notificacao')
-      .select('notificar_pecas_compativeis')
-      .eq('user_id', userId)
-      .maybeSingle();
+    const result = await dispatchNotification({
+      userId,
+      tipo: 'peca_compatível',
+      titulo: titulo || 'Nova peça compatível com sua lista de desejos',
+      mensagem:
+        mensagem ||
+        'Uma nova peça verificada pela curadoria Lastro combina com os itens salvos na sua Lista de Desejos.',
+      pecaId: pecaId || null,
+      passportId: passportId || null,
+      acaoUrl: acaoUrl || (passportId ? `/passaporte/${passportId}?origem=alerta` : '/catalogo'),
+      respectPreferences: true
+    });
 
-    if (prefs && prefs.notificar_pecas_compativeis === false) {
-      return res.json({ message: 'Usuário desativou notificações de peças compatíveis', enviado: false });
-    }
-
-    const { data, error } = await supabase
-      .from('notificacoes')
-      .insert([{
-        user_id: userId,
-        tipo: 'peca_compatível',
-        titulo: titulo || 'Nova peça compatível com sua lista de desejos',
-        mensagem: mensagem || 'Uma nova peça da curadoria combina com os itens salvos na sua lista.',
-        peca_id: pecaId || null,
-        passport_id: passportId || null,
-        acao_url: acaoUrl || null
-      }])
-      .select()
-      .single();
-
-    if (error) {
-      console.error('[Supabase POST /habito/alerta-peca-compativel Error]:', error.message);
-      return res.status(400).json({ message: 'Erro ao criar alerta', error: error.message });
+    if (!result.sent) {
+      return res.json({
+        enviado: false,
+        blockedByPreferences: true,
+        message: result.reason
+      });
     }
 
     await logEvent({
@@ -112,105 +110,153 @@ router.post('/alerta-peca-compativel', async (req, res) => {
       passportId,
       userId,
       origin: 'alerta',
-      isOwner: true,
-      metadata: { acao: 'alerta_peca_compativel', notificacaoId: data.id }
+      isOwner: false,
+      metadata: { acao: 'alerta_peca_compativel_enviado', notificacaoId: result.notificacao.id }
     });
 
-    res.status(201).json({ message: 'Alerta de peça compatível enviado', notificacao: data });
+    res.status(201).json({
+      enviado: true,
+      message: 'Alerta de peça compatível enviado com sucesso',
+      notificacao: result.notificacao
+    });
   } catch (err) {
     console.error('Erro inesperado ao enviar alerta de peça compatível:', err);
     res.status(500).json({ message: 'Erro interno ao enviar alerta de peça compatível' });
   }
 });
 
-// POST /api/habito/aviso-laudo-concluido - Notifica laudo concluído (RF29)
+// POST /api/habito/aviso-laudo-concluido - Notifica laudo concluído (RF29 / Critério de Aceite 9)
 router.post('/aviso-laudo-concluido', validate(notificarLaudoConcluidoSchema), async (req, res) => {
   const { pecaId, passportId, usuarioId, tipo } = req.body;
 
   try {
-    if (!supabase) {
-      return res.status(500).json({ message: 'Supabase não está configurado no .env' });
-    }
+    const result = await dispatchNotification({
+      userId: usuarioId,
+      tipo: 'laudo_concluido',
+      titulo: 'Laudo pericial concluído — Passaporte emitido',
+      mensagem:
+        tipo === 'vendedor'
+          ? 'O perito credenciado concluiu o laudo da peça em seu estoque e o Passaporte Digital já pode ser compartilhado.'
+          : 'O perito credenciado assinou o laudo da sua peça. O Passaporte Digital emitido já está disponível para consulta.',
+      pecaId: pecaId || null,
+      passportId: passportId || null,
+      acaoUrl: passportId ? `/passaporte/${passportId}?origem=alerta` : pecaId ? `/peca/${pecaId}` : '/catalogo',
+      respectPreferences: true
+    });
 
-    if (!usuarioId) {
-      return res.status(400).json({ message: 'usuarioId é obrigatório' });
-    }
-
-    const { data: prefs } = await supabase
-      .from('preferencias_notificacao')
-      .select('notificar_laudo_concluido')
-      .eq('user_id', usuarioId)
-      .maybeSingle();
-
-    if (prefs && prefs.notificar_laudo_concluido === false) {
-      return res.json({ message: 'Usuário desativou notificações de laudo concluído', enviado: false });
-    }
-
-    const { data, error } = await supabase
-      .from('notificacoes')
-      .insert([{
-        user_id: usuarioId,
-        tipo: 'laudo_concluido',
-        titulo: 'Laudo concluído — Passaporte disponível',
-        mensagem: tipo === 'vendedor'
-          ? 'O perito concluiu o laudo da sua peça e o passaporte digital está disponível.'
-          : 'O perito concluiu o laudo de uma peça que você acompanha. O passaporte está disponível.',
-        peca_id: pecaId || null,
-        passport_id: passportId || null,
-        acao_url: `/passaporte/${passportId}?origem=alerta`
-      }])
-      .select()
-      .single();
-
-    if (error) {
-      console.error('[Supabase POST /habito/aviso-laudo-concluido Error]:', error.message);
-      return res.status(400).json({ message: 'Erro ao criar aviso de laudo', error: error.message });
+    if (!result.sent) {
+      return res.json({
+        enviado: false,
+        blockedByPreferences: true,
+        message: result.reason
+      });
     }
 
     await logEvent({
-      eventName: 'laudo_aberto',
+      eventName: 'passaporte_publicado',
       pecaId,
       passportId,
       userId: usuarioId,
-      origin: 'direto',
+      origin: 'alerta',
       isOwner: tipo === 'dono',
-      metadata: { acao: 'aviso_laudo_concluido', tipoNotificacao: tipo, notificacaoId: data.id }
+      metadata: { acao: 'aviso_laudo_concluido', tipoNotificacao: tipo, notificacaoId: result.notificacao.id }
     });
 
-    res.status(201).json({ message: 'Aviso de laudo concluído enviado', notificacao: data });
+    res.status(201).json({
+      enviado: true,
+      message: 'Aviso de laudo concluído enviado com sucesso',
+      notificacao: result.notificacao
+    });
   } catch (err) {
     console.error('Erro inesperado ao enviar aviso de laudo:', err);
     res.status(500).json({ message: 'Erro interno ao enviar aviso de laudo concluído' });
   }
 });
 
-// GET /api/habito/primeiro-investimento/status - Verifica primeiro investimento
-router.get('/primeiro-investimento/status', async (req, res) => {
-  const { userId } = req.query;
+// POST /api/habito/lembrete-conservacao - Dispara notificação de lembrete de conservação (RF09 / Critério de Aceite 9)
+router.post('/lembrete-conservacao', async (req, res) => {
+  const { userId, pecaId, passportId, frequencia = 'semestral', titulo, mensagem } = req.body;
 
   try {
-    if (!supabase) {
-      return res.status(500).json({ message: 'Supabase não está configurado no .env' });
-    }
-
     if (!userId) {
       return res.status(400).json({ message: 'userId é obrigatório' });
     }
 
-    const { data: eventos } = await supabase
-      .from('eventos')
-      .select('event_name')
-      .eq('user_id', userId)
-      .in('event_name', ['peca_salva', 'lista_criada', 'peca_registrada'])
-      .order('created_at', { ascending: true })
-      .limit(1);
+    const result = await dispatchNotification({
+      userId,
+      tipo: 'lembrete_conservacao',
+      titulo: titulo || `Lembrete ${frequencia} de conservação do acervo`,
+      mensagem:
+        mensagem ||
+        'Chegou o momento de revisar o estado de conservação e atualizar o histórico de manutenção da sua peça no Passaporte Digital.',
+      pecaId: pecaId || null,
+      passportId: passportId || null,
+      acaoUrl: passportId ? `/passaporte/${passportId}?origem=alerta` : '/lembretes',
+      respectPreferences: true
+    });
 
-    const jaInvestiu = eventos && eventos.length > 0;
+    if (!result.sent) {
+      return res.json({
+        enviado: false,
+        blockedByPreferences: true,
+        message: result.reason
+      });
+    }
+
+    res.status(201).json({
+      enviado: true,
+      message: 'Lembrete de conservação enviado com sucesso',
+      notificacao: result.notificacao
+    });
+  } catch (err) {
+    console.error('Erro ao disparar lembrete de conservação:', err);
+    res.status(500).json({ message: 'Erro interno ao disparar lembrete de conservação' });
+  }
+});
+
+// GET /api/habito/primeiro-investimento/status - Verifica primeiro investimento (RF16 / B2)
+router.get('/primeiro-investimento/status', async (req, res) => {
+  const { userId, anonymousId } = req.query;
+  const targetUser = userId || anonymousId;
+
+  try {
+    if (!targetUser) {
+      return res.status(400).json({ message: 'userId ou anonymousId é obrigatório' });
+    }
+
+    const investEvents = ['peca_salva', 'lista_criada', 'peca_registrada', 'peca_cadastrada'];
+
+    if (supabase) {
+      const column = userId ? 'user_id' : 'anonymous_id';
+      const { data: eventos, error } = await supabase
+        .from('eventos')
+        .select('event_name, created_at')
+        .eq(column, targetUser)
+        .in('event_name', investEvents)
+        .order('created_at', { ascending: true })
+        .limit(1);
+
+      if (!error && eventos && eventos.length > 0) {
+        return res.json({
+          userId: targetUser,
+          primeiroInvestimentoFeito: true,
+          primeiroEvento: eventos[0].event_name,
+          dataPrimeiroInvestimento: eventos[0].created_at
+        });
+      }
+    }
+
+    const memMatch = inMemoryEvents.find(
+      (e) =>
+        (e.user_id === targetUser || e.anonymous_id === targetUser) &&
+        investEvents.includes(e.event_name)
+    );
 
     res.json({
-      userId,
-      primeiroInvestimentoFeito: jaInvestiu,
-      primeiroEvento: eventos && eventos[0] ? eventos[0].event_name : null
+      userId: targetUser,
+      primeiroInvestimentoFeito: Boolean(memMatch),
+      primeiroEvento: memMatch ? memMatch.event_name : null,
+      dataPrimeiroInvestimento: memMatch ? memMatch.created_at : null
     });
   } catch (err) {
     console.error('Erro inesperado ao verificar primeiro investimento:', err);

@@ -10,6 +10,7 @@ const {
   formatPecaPassport,
   logEvent
 } = require('../utils/eventLogger');
+const { dispatchNotification } = require('../utils/notificationHelper');
 
 const getFrontendBaseUrl = () => process.env.FRONTEND_URL || 'http://localhost:5173';
 
@@ -187,6 +188,20 @@ router.post('/', validate(createPecaSchema), async (req, res) => {
       isOwner: true,
       metadata: { category: data.category }
     });
+
+    // RF05 / RF16: Registra notificação do registro da peça para o proprietário
+    if (ownerId) {
+      await dispatchNotification({
+        userId: ownerId,
+        tipo: 'primeiro_investimento',
+        titulo: `Peça registrada: ${data.name}`,
+        mensagem: `Sua peça "${data.name}" recebeu o protocolo ${data.passport_id} e está em triagem pericial. Ative "Laudo concluído" em Notificações para ser avisado assim que o perito assinar o laudo.`,
+        pecaId: data.id,
+        passportId: data.passport_id,
+        acaoUrl: `/passaporte/${data.share_token || data.passport_id}?origem=alerta`,
+        respectPreferences: false
+      });
+    }
 
     res.status(201).json(formatPecaPassport(data, getFrontendBaseUrl()));
   } catch (err) {
