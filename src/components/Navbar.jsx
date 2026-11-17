@@ -9,6 +9,7 @@ const CATEGORIES = [
   'MOBILIÁRIO',
   'RELÓGIOS',
   'AUTOMOTIVO',
+  'JOIAS',
   'DIVERSOS'
 ];
 
@@ -38,6 +39,10 @@ const Navbar = () => {
 
   const fetchUnreadNotifications = useCallback(async () => {
     const userId = getCurrentUserId();
+    if (!userId || userId === 'anon_user') {
+      setUnreadCount(0);
+      return;
+    }
     try {
       const response = await fetch(
         apiUrl(`/api/notificacoes?userId=${encodeURIComponent(userId)}&lida=false&limit=50`)

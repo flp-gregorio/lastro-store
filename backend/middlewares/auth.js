@@ -48,7 +48,7 @@ const authenticate = async (req, res, next) => {
         name: sessionData.name || sessionData.email?.split('@')[0]
       };
       return next();
-    } catch (e) {
+    } catch {
       console.warn('[Auth Middleware]: Falha ao decodificar token interno');
     }
   }

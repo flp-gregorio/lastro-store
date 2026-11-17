@@ -347,23 +347,36 @@ const runTest = async () => {
     });
     const markReadData = await resMarkRead.json();
     assert(
-      resMarkRead.status === 200 && markReadData.notificacao?.lida === true,
-      'Person B opened/marked the approval notification as read'
+      resMarkRead.status === 200 &&
+        markReadData.notificacao?.lida === true &&
+        markReadData.notificacao?.tipo === 'peca_aprovada',
+      'Person B opened/marked the approval notification as read (normalized tipo: peca_aprovada)'
     );
 
     // -----------------------------------------------------------------------
     // STEP 16: Person B views the approved "Relógio"
     // -----------------------------------------------------------------------
     console.log(`\n[STEP 16/16] Person B navigates to and views the approved "Relógio"...`);
-    const resFinalWatch = await fetch(`${baseUrl}${approvalNotifB.acao_url}`);
+    const resFinalWatch = await fetch(`${baseUrl}${approvalNotifB.acao_url}`, {
+      headers: { Origin: 'https://lastro-store-front.vercel.app' }
+    });
     const finalWatch = await resFinalWatch.json();
+    const hasSubmissionHistory =
+      Array.isArray(finalWatch.history) &&
+      finalWatch.history.some((h) => h.title === 'Submissão de Dossiê para Curadoria');
+    const hasApprovalHistory =
+      Array.isArray(finalWatch.history) &&
+      finalWatch.history.some((h) => h.title === 'Aprovação de Curadoria e Emissão de Passaporte');
     assert(
       resFinalWatch.status === 200 &&
         finalWatch.name === 'Relógio' &&
         finalWatch.category === 'Relógios' &&
         finalWatch.status === 'APPROVED' &&
-        finalWatch.expertName === 'Curadoria Lastro',
-      `Person B views approved "Relógio" (Status: ${finalWatch.status}, Category: ${finalWatch.category}, Expert: ${finalWatch.expertName})`
+        finalWatch.expertName === 'Curadoria Lastro' &&
+        hasSubmissionHistory &&
+        hasApprovalHistory &&
+        finalWatch.sharing?.shareUrl?.startsWith('https://lastro-store-front.vercel.app/'),
+      `Person B views approved "Relógio" (Status: ${finalWatch.status}, History entries: ${finalWatch.history?.length}, Share Origin: ${finalWatch.sharing?.shareUrl})`
     );
 
     const resFinalPublic = await fetch(`${baseUrl}/api/pecas`);

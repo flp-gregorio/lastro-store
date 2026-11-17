@@ -378,7 +378,7 @@ const markNotificationRead = async ({ id, userId, markAll = false }) => {
       const { data, error } = await query.select();
       if (!error && Array.isArray(data)) {
         for (const row of data) {
-          updatedMap.set(String(row.id), row);
+          updatedMap.set(String(row.id), normalizeNotificationRow(row));
         }
       }
     }

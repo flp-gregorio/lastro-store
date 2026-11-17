@@ -433,6 +433,10 @@ const Passaporte = () => {
     try {
       // Build query params to send to backend
       const params = new URLSearchParams({ origem: origin });
+      const activeUserId = getCurrentUserId();
+      if (activeUserId && activeUserId !== 'anon_user') {
+        params.set('userId', activeUserId);
+      }
       const anonId = sessionStorage.getItem('lastro_anon_id');
       if (anonId) params.set('anonymousId', anonId);
 
@@ -464,7 +468,7 @@ const Passaporte = () => {
       }
 
       setStatus('ok');
-    } catch (err) {
+    } catch {
       setStatus('error');
       setErrorMsg('Falha de conexão. Verifique sua internet e tente novamente.');
     }

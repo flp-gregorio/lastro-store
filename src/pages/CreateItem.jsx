@@ -348,7 +348,7 @@ const CreateItem = () => {
                   value={formData.price ? formatDisplayPrice(formData.price) : ''}
                   onChange={handlePriceChange}
                   className="w-full bg-[#0a0a0a] border border-[#2a2a2a] pl-12 pr-4 py-3.5 text-white focus:outline-none focus:border-[#A69076] transition-colors font-sans text-sm placeholder:text-gray-600 font-mono tracking-wider"
-                  placeholder="0,00"
+                  placeholder="Ex: 185.000"
                 />
               </div>
             </div>

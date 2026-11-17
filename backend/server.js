@@ -58,7 +58,7 @@ app.use((req, res) => {
 });
 
 // Middleware Global de Tratamento de Erros
-app.use((err, req, res, next) => {
+app.use((err, req, res, _next) => {
   console.error('Unhandled Server Error:', err);
   res.status(500).json({ message: 'Erro interno do servidor', error: err.message });
 });

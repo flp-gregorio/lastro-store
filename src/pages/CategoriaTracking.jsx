@@ -20,6 +20,7 @@ const AVAILABLE_CATEGORIES = [
   { id: 'Mobiliário', label: 'Mobiliário', icon: Sparkles, desc: 'Design modernista e clássicos consagrados' },
   { id: 'Automotivo', label: 'Automotivo', icon: Sparkles, desc: 'Veículos clássicos e esportivos de coleção' },
   { id: 'Joias', label: 'Joias', icon: Sparkles, desc: 'Alta joalheria, pedras raras e assinaturas' },
+  { id: 'Diversos', label: 'Diversos', icon: Sparkles, desc: 'Outros objetos raros, documentos e peças históricas' },
 ];
 
 const formatCategoryLabel = (cat) =>

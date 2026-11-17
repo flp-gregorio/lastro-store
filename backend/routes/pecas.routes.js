@@ -14,7 +14,16 @@ const { dispatchNotification, notifyCompatibleWishlistsForNewPeca } = require('.
 const { getUsersTrackingCategory } = require('./categorias-rastreadas.routes');
 const { requireStoreRole } = require('../middlewares/auth');
 
-const getFrontendBaseUrl = () => process.env.FRONTEND_URL || 'http://localhost:5173';
+const getFrontendBaseUrl = (req) => {
+  if (process.env.FRONTEND_URL) return process.env.FRONTEND_URL;
+  const originHeader = req?.headers?.origin;
+  if (originHeader && /^https?:\/\//i.test(originHeader)) {
+    return originHeader;
+  }
+  return process.env.VERCEL || process.env.NODE_ENV === 'production'
+    ? 'https://lastro-store-front.vercel.app'
+    : 'http://localhost:5173';
+};
 
 // Cache local em memória para fallback e reflexo imediato de atualizações recentes
 const localPecas = [];
@@ -54,22 +63,27 @@ const hydratePecasWithCurationEvents = async (pecasList) => {
       const expertDate =
         meta.expertDate ||
         (evt.created_at ? new Date(evt.created_at).toLocaleDateString('pt-BR') : p.expert_date);
+      const existingHistory = Array.isArray(p.history) ? p.history : [];
+      const approvalTitle = 'Aprovação de Curadoria e Emissão de Passaporte';
+      const hasApprovalEntry = existingHistory.some((h) => h && h.title === approvalTitle);
+      const nextHistory = hasApprovalEntry
+        ? existingHistory
+        : [
+            ...existingHistory,
+            {
+              date: String(new Date(evt.created_at || Date.now()).getFullYear()),
+              title: approvalTitle,
+              details: 'Dossiê técnico e originalidade verificados pela equipe credenciada da Lastro.',
+              verifiedBy: expertName
+            }
+          ];
+
       return {
         ...p,
         status: meta.status,
         expert_name: expertName,
         expert_date: expertDate,
-        history:
-          Array.isArray(p.history) && p.history.length > 0
-            ? p.history
-            : [
-                {
-                  date: String(new Date(evt.created_at || Date.now()).getFullYear()),
-                  title: 'Aprovação de Curadoria e Emissão de Passaporte',
-                  details: 'Dossiê técnico e originalidade verificados pela equipe credenciada da Lastro.',
-                  verifiedBy: expertName
-                }
-              ]
+        history: nextHistory
       };
     });
   } catch (err) {
@@ -118,7 +132,7 @@ router.get('/', async (req, res) => {
     const all = await hydratePecasWithCurationEvents(
       Array.from(map.values()).sort((a, b) => Number(b.id) - Number(a.id))
     );
-    const baseUrl = getFrontendBaseUrl();
+    const baseUrl = getFrontendBaseUrl(req);
     res.json(all.map((item) => formatPecaPassport(item, baseUrl)));
   } catch (err) {
     console.error('Erro inesperado ao listar peças:', err);
@@ -194,7 +208,7 @@ router.get('/:id', async (req, res) => {
     }
 
     const [hydrated] = await hydratePecasWithCurationEvents([data]);
-    res.json(formatPecaPassport(hydrated, getFrontendBaseUrl()));
+    res.json(formatPecaPassport(hydrated, getFrontendBaseUrl(req)));
   } catch (err) {
     console.error('Erro inesperado ao buscar peça:', err);
     res.status(500).json({ message: 'Erro interno ao buscar peça' });
@@ -290,7 +304,7 @@ router.post('/', validate(createPecaSchema), async (req, res) => {
       }
 
       if (existingPiece) {
-        return res.status(200).json(formatPecaPassport(existingPiece, getFrontendBaseUrl()));
+        return res.status(200).json(formatPecaPassport(existingPiece, getFrontendBaseUrl(req)));
       }
     }
 
@@ -396,7 +410,7 @@ router.post('/', validate(createPecaSchema), async (req, res) => {
       console.error('[Category Tracker Notification Error]:', notifErr.message);
     }
 
-    res.status(201).json(formatPecaPassport(createdPiece, getFrontendBaseUrl()));
+    res.status(201).json(formatPecaPassport(createdPiece, getFrontendBaseUrl(req)));
   } catch (err) {
     console.error('Erro inesperado ao criar peça:', err);
     res.status(500).json({ message: 'Erro interno ao salvar peça' });
@@ -448,7 +462,7 @@ router.patch('/:id/status', requireStoreRole, async (req, res) => {
     ) {
       return res.json({
         message: 'A peça já está verificada.',
-        peca: formatPecaPassport(peca, getFrontendBaseUrl())
+        peca: formatPecaPassport(peca, getFrontendBaseUrl(req))
       });
     }
 
@@ -562,7 +576,7 @@ router.patch('/:id/status', requireStoreRole, async (req, res) => {
 
     res.json({
       message: 'Status da peça atualizado com sucesso!',
-      peca: formatPecaPassport(updatedPeca, getFrontendBaseUrl())
+      peca: formatPecaPassport(updatedPeca, getFrontendBaseUrl(req))
     });
   } catch (err) {
     console.error('Erro ao atualizar status da peça:', err);
@@ -581,5 +595,8 @@ router.post('/:id/aprovar', requireStoreRole, async (req, res) => {
   }
   res.status(500).json({ message: 'Handler não disponível' });
 });
+
+router.getFrontendBaseUrl = getFrontendBaseUrl;
+router.hydratePecasWithCurationEvents = hydratePecasWithCurationEvents;
 
 module.exports = router;

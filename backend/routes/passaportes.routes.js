@@ -11,6 +11,7 @@ const {
   ensureFirstVisitAttribution,
   logEvent
 } = require('../utils/eventLogger');
+const { hydratePecasWithCurationEvents, getFrontendBaseUrl } = require('./pecas.routes');
 
 /**
  * Busca uma peça no Supabase pelo identificador público não enumerável (`share_token` ou `passport_id`)
@@ -111,8 +112,9 @@ router.get('/:identifier', async (req, res) => {
       }
     });
 
-    const frontendBaseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    const formattedPassport = formatPecaPassport(item, frontendBaseUrl);
+    const [hydratedItem] = await hydratePecasWithCurationEvents([item]);
+    const frontendBaseUrl = getFrontendBaseUrl(req);
+    const formattedPassport = formatPecaPassport(hydratedItem, frontendBaseUrl);
 
     return res.json({
       passport: formattedPassport,
@@ -186,7 +188,7 @@ router.post('/:id/compartilhar', validate(shareLinkSchema), async (req, res) => 
       };
     }
 
-    const frontendBaseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const frontendBaseUrl = getFrontendBaseUrl(req);
     const shareIdentifier = updatedItem.share_token || updatedItem.passport_id;
     const shareOrigin = normalizeOrigin(origin || 'link_vendedor');
 
