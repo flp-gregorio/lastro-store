@@ -12,6 +12,7 @@
 const http = require('http');
 const app = require('./backend/server');
 const supabase = require('./backend/config/supabase');
+const authRoutes = require('./backend/routes/auth.routes');
 
 const runTest = async () => {
   const server = http.createServer(app);
@@ -227,16 +228,44 @@ const runTest = async () => {
     assert(!uninvitedD1, 'Control user D (not tracking Relógios) did NOT receive first notification');
 
     // -----------------------------------------------------------------------
-    // STEP 9: Person C accesses the store interface independently
+    // STEP 9: Self-signup ignores role; DB promotion grants EquipeLastro
     // -----------------------------------------------------------------------
-    console.log(`\n[STEP 9/16] Person C (EquipeLastro) registers & logs in independently...`);
+    console.log(`\n[STEP 9/16] Verify signup restricts role to Comprador & DB grants EquipeLastro...`);
     const emailC = `personc_store_${timestamp}@lastro.com`;
     const resRegC = await fetch(`${baseUrl}/api/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: emailC, password: 'password123', name: 'Pessoa C (Curadoria)', role: 'EquipeLastro' })
+      body: JSON.stringify({
+        email: emailC,
+        password: 'password123',
+        name: 'Pessoa C (Curadoria)',
+        role: 'EquipeLastro'
+      })
     });
     const dataRegC = await resRegC.json();
+    assert(
+      resRegC.status === 201 && dataRegC.user?.role === 'Comprador',
+      `Self-registration ignores spoofed role and enforces Comprador (Got: ${dataRegC.user?.role})`
+    );
+
+    // Header spoofing check before DB promotion
+    const resSpoofedHeader = await fetch(`${baseUrl}/api/pecas/${createdRelogio.id}/status`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${dataRegC.token}`,
+        'x-user-role': 'EquipeLastro'
+      },
+      body: JSON.stringify({ status: 'APPROVED' })
+    });
+    assert(
+      resSpoofedHeader.status === 403,
+      'Unpromoted account cannot spoof admin access via x-user-role header (403 Forbidden)'
+    );
+
+    // Simulate direct DB promotion of Person C to EquipeLastro
+    await authRoutes.setLocalUserRole(dataRegC.user.id, 'EquipeLastro');
+
     const resLoginC = await fetch(`${baseUrl}/api/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -245,14 +274,18 @@ const runTest = async () => {
     const dataLoginC = await resLoginC.json();
     const tokenC = dataLoginC.token || dataRegC.token;
     assert(
-      resRegC.status === 201 && resLoginC.status === 200 && dataRegC.user?.role === 'EquipeLastro' && Boolean(tokenC),
-      `Person C authenticated with store role EquipeLastro (ID: ${dataRegC.user?.id})`
+      resLoginC.status === 200 && dataLoginC.user?.role === 'EquipeLastro' && Boolean(tokenC),
+      `After DB role update, Person C logs in as EquipeLastro (ID: ${dataRegC.user?.id})`
     );
 
-    // Security check: regular buyer Person A cannot approve
+    // Security check: regular buyer Person A cannot approve (even with spoofed header)
     const resForbidden = await fetch(`${baseUrl}/api/pecas/${createdRelogio.id}/status`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokenA}` },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${tokenA}`,
+        'x-user-role': 'Admin'
+      },
       body: JSON.stringify({ status: 'APPROVED' })
     });
     assert(resForbidden.status === 403, 'Regular user A is rejected from verifying products (403 Forbidden)');

@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShieldCheck, UserCheck } from 'lucide-react';
 import { apiUrl } from '../api';
 
 const Auth = () => {
@@ -8,7 +7,6 @@ const Auth = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('Comprador');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
@@ -23,7 +21,7 @@ const Auth = () => {
     const endpoint = isRegister ? '/api/register' : '/api/login';
     const anonymousId = sessionStorage.getItem('lastro_anon_id') || undefined;
     const payload = isRegister
-      ? { email, password, name, role, anonymousId }
+      ? { email, password, name, anonymousId }
       : { email, password, anonymousId };
 
     try {
@@ -41,7 +39,7 @@ const Auth = () => {
 
       if (data.token && data.user) {
         const serializedUser = JSON.stringify(data.user);
-        const resolvedRole = data.user.role || role || 'Comprador';
+        const resolvedRole = data.user.role || 'Comprador';
         for (const storage of [sessionStorage, localStorage]) {
           storage.setItem('token', data.token);
           storage.setItem('user', serializedUser);
@@ -106,53 +104,19 @@ const Auth = () => {
 
         <form onSubmit={handleSubmit} className="space-y-5">
           {isRegister && (
-            <>
-              <div>
-                <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">
-                  Nome Completo
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full bg-[#0a0a0a] border border-gray-700 px-4 py-3 text-white focus:outline-none focus:border-[#A69076] transition-colors font-sans text-sm"
-                  placeholder="Digite seu nome completo"
-                />
-              </div>
-
-              <div>
-                <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">
-                  Tipo de Conta
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setRole('Comprador')}
-                    className={`py-2.5 px-3 border text-xs font-sans uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
-                      role === 'Comprador'
-                        ? 'border-[#A69076] bg-[#A69076]/10 text-[#A69076]'
-                        : 'border-gray-800 text-gray-400 hover:border-gray-700'
-                    }`}
-                  >
-                    <UserCheck className="w-3.5 h-3.5" />
-                    Colecionador
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setRole('EquipeLastro')}
-                    className={`py-2.5 px-3 border text-xs font-sans uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
-                      role === 'EquipeLastro'
-                        ? 'border-[#A69076] bg-[#A69076]/10 text-[#A69076]'
-                        : 'border-gray-800 text-gray-400 hover:border-gray-700'
-                    }`}
-                  >
-                    <ShieldCheck className="w-3.5 h-3.5" />
-                    Representante da Loja
-                  </button>
-                </div>
-              </div>
-            </>
+            <div>
+              <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">
+                Nome Completo
+              </label>
+              <input
+                type="text"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full bg-[#0a0a0a] border border-gray-700 px-4 py-3 text-white focus:outline-none focus:border-[#A69076] transition-colors font-sans text-sm"
+                placeholder="Digite seu nome completo"
+              />
+            </div>
           )}
 
           <div>
