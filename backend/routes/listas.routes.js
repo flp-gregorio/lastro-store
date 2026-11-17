@@ -10,6 +10,7 @@ const {
 const { logEvent } = require('../utils/eventLogger');
 const {
   dispatchNotification,
+  checkAndNotifyExistingCompatiblePecaForUser,
   inMemoryListas,
   inMemoryItensLista
 } = require('../utils/notificationHelper');
@@ -215,6 +216,8 @@ router.post('/itens', validate(adicionarItemListaSchema), async (req, res) => {
           respectPreferences: false
         });
 
+        await checkAndNotifyExistingCompatiblePecaForUser(userId || lista.user_id);
+
         return res.status(201).json(data);
       }
     }
@@ -262,6 +265,8 @@ router.post('/itens', validate(adicionarItemListaSchema), async (req, res) => {
       acaoUrl: pecaPassportId ? `/passaporte/${pecaPassportId}?origem=alerta` : `/peca/${pecaId}`,
       respectPreferences: false
     });
+
+    await checkAndNotifyExistingCompatiblePecaForUser(targetUser);
 
     res.status(201).json(newItem);
   } catch (err) {
