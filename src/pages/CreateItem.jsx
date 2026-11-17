@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { apiUrl } from '../api';
+import { apiUrl, getCurrentUserId } from '../api';
 import {
   ArrowLeft,
   Upload,
@@ -145,6 +145,7 @@ const CreateItem = () => {
 
     // DRE v2.0: Submetido para perícia e curadoria da equipe Lastro.
     const payload = {
+      ownerId: getCurrentUserId(),
       name: formData.name.trim(),
       category: formData.category,
       price: numericPrice,

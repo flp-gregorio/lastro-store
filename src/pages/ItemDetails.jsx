@@ -1,28 +1,103 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ShieldCheck, ArrowLeft, Info, FileText } from 'lucide-react';
-import { apiUrl } from '../api';
+import { ShieldCheck, ArrowLeft, Info, FileText, Heart, Check } from 'lucide-react';
+import { apiUrl, getCurrentUserId } from '../api';
 
 const ItemDetails = () => {
   const { id } = useParams();
   const [item, setItem] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [savingWishlist, setSavingWishlist] = useState(false);
+  const [savedSuccess, setSavedSuccess] = useState(false);
 
   useEffect(() => {
-    const fetchItem = async () => {
+    const fetchItemAndWishlistStatus = async () => {
+      const userId = getCurrentUserId();
       try {
-        const response = await fetch(apiUrl(`/api/pecas/${id}`));
-        if (!response.ok) throw new Error('Not found');
-        const data = await response.json();
+        const [itemRes, listasRes] = await Promise.all([
+          fetch(apiUrl(`/api/pecas/${id}`)),
+          fetch(apiUrl(`/api/listas?userId=${encodeURIComponent(userId)}`)).catch(() => null)
+        ]);
+
+        if (!itemRes.ok) throw new Error('Not found');
+        const data = await itemRes.json();
         setItem(data);
+
+        if (listasRes && listasRes.ok) {
+          const listas = await listasRes.json();
+          if (Array.isArray(listas)) {
+            const alreadyInWishlist = listas.some(
+              (lista) =>
+                Array.isArray(lista.itens) &&
+                lista.itens.some(
+                  (entry) =>
+                    Number(entry.peca_id) === Number(data.id) ||
+                    (data.passportId && entry.passport_id === data.passportId)
+                )
+            );
+            setSavedSuccess(alreadyInWishlist);
+          }
+        }
       } catch (error) {
         console.error('Error fetching item:', error);
       } finally {
         setLoading(false);
       }
     };
-    fetchItem();
+    fetchItemAndWishlistStatus();
   }, [id]);
+
+  // Salva a peça na Lista de Desejos do usuário (criando a lista padrão se necessário)
+  const handleSalvarNaLista = async () => {
+    if (!item || savingWishlist || savedSuccess) return;
+    setSavingWishlist(true);
+    const userId = getCurrentUserId();
+
+    try {
+      const listasRes = await fetch(apiUrl(`/api/listas?userId=${encodeURIComponent(userId)}`));
+      const listas = listasRes.ok ? await listasRes.json() : [];
+
+      let targetListaId = Array.isArray(listas) && listas.length > 0 ? listas[0].id : null;
+
+      if (!targetListaId) {
+        const criarRes = await fetch(apiUrl('/api/listas'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId,
+            nome: 'Minhas peças salvas',
+            tipo: 'simples'
+          })
+        });
+        if (criarRes.ok) {
+          const novaLista = await criarRes.json();
+          targetListaId = novaLista.id;
+        }
+      }
+
+      if (targetListaId) {
+        const addRes = await fetch(apiUrl(`/api/listas/itens?userId=${encodeURIComponent(userId)}`), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId,
+            listaId: targetListaId,
+            pecaId: Number(item.id),
+            passportId: item.passportId
+          })
+        });
+
+        if (addRes.ok || addRes.status === 409) {
+          setSavedSuccess(true);
+          window.dispatchEvent(new Event('lastro:notifications-updated'));
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao salvar peça na lista de desejos:', err);
+    } finally {
+      setSavingWishlist(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -98,11 +173,31 @@ const ItemDetails = () => {
             </Link>
           </div>
 
-          <div className="flex gap-4">
-            <button className="flex-1 bg-white text-black py-4 font-sans uppercase tracking-widest text-sm hover:bg-gray-200 transition-colors">
+          <div className="flex flex-col sm:flex-row gap-4">
+            <button className="flex-1 bg-white text-black py-4 font-sans uppercase tracking-widest text-sm hover:bg-gray-200 transition-colors cursor-pointer">
               Enviar Proposta
             </button>
-            <button className="px-6 border border-gray-600 hover:border-white transition-colors flex items-center justify-center">
+            <button
+              onClick={handleSalvarNaLista}
+              disabled={savingWishlist || savedSuccess}
+              className={[
+                'flex-1 py-4 px-6 font-sans uppercase tracking-widest text-xs font-semibold transition-colors flex items-center justify-center gap-2 border',
+                savedSuccess
+                  ? 'bg-emerald-950/40 border-emerald-600 text-emerald-300 cursor-default'
+                  : 'bg-[#A69076] border-[#A69076] text-black hover:bg-[#b8a287] cursor-pointer'
+              ].join(' ')}
+            >
+              {savedSuccess ? (
+                <>
+                  <Check className="w-4 h-4 shrink-0" /> Já adicionado à lista de desejos
+                </>
+              ) : (
+                <>
+                  <Heart className="w-4 h-4 shrink-0" /> {savingWishlist ? 'Salvando...' : 'Salvar na Lista de Desejos'}
+                </>
+              )}
+            </button>
+            <button className="px-6 py-4 sm:py-0 border border-gray-600 hover:border-white transition-colors flex items-center justify-center cursor-pointer">
               <Info className="w-5 h-5 text-gray-400" />
             </button>
           </div>

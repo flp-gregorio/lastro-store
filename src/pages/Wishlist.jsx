@@ -7,7 +7,7 @@ import {
   ArrowLeft,
   ChevronRight
 } from 'lucide-react';
-import { apiUrl } from '../api';
+import { apiUrl, getCurrentUserId } from '../api';
 
 const Wishlist = () => {
   const [listas, setListas] = useState([]);
@@ -15,7 +15,7 @@ const Wishlist = () => {
   const [activeListaId, setActiveListaId] = useState(null);
   const navigate = useNavigate();
 
-  const userId = localStorage.getItem('userId') || 'anon_user';
+  const userId = getCurrentUserId();
 
   useEffect(() => {
     carregarListas();
