@@ -137,29 +137,17 @@ const Notificacoes = () => {
 
       if (tipoGatilho === 'peca_compativel') {
         endpoint = '/api/habito/alerta-peca-compativel';
-        payload = {
-          userId,
-          pecaId: 5,
-          passportId: 'LST-62A15A43B3A9',
-          titulo: 'Nova peça compatível com sua Lista de Desejos',
-          mensagem:
-            'O relógio "Omega Speedmaster Professional Moonwatch" foi verificado pela curadoria Lastro e combina com sua lista.',
-          acaoUrl: '/passaporte/cffb6ce44bfb0cfebc69fb75?origem=alerta'
-        };
+        payload = { userId };
       } else if (tipoGatilho === 'laudo_concluido') {
         endpoint = '/api/habito/aviso-laudo-concluido';
         payload = {
           usuarioId: userId,
-          pecaId: 6,
-          passportId: 'LST-F26BA357837D',
           tipo: 'dono'
         };
       } else if (tipoGatilho === 'lembrete_conservacao') {
         endpoint = '/api/habito/lembrete-conservacao';
         payload = {
           userId,
-          pecaId: 1,
-          passportId: 'LST-2026-R8910',
           frequencia: preferencias.frequenciaLembrete || 'semestral'
         };
       }

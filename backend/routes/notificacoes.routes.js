@@ -7,7 +7,8 @@ const {
   saveUserPreferences,
   dispatchNotification,
   listUserNotifications,
-  markNotificationRead
+  markNotificationRead,
+  checkAndNotifyExistingCompatiblePecaForUser
 } = require('../utils/notificationHelper');
 
 // GET /api/notificacoes/preferencias - Obter preferências do usuário (RF14 / RNF06)
@@ -31,6 +32,9 @@ router.get('/preferencias', async (req, res) => {
 router.put('/preferencias', validate(preferenciasNotificacaoSchema), async (req, res) => {
   try {
     const saved = await saveUserPreferences(req.body);
+    if (saved.notificarPecasCompativeis) {
+      await checkAndNotifyExistingCompatiblePecaForUser(saved.userId);
+    }
     res.json(saved);
   } catch (err) {
     console.error('Erro inesperado ao atualizar preferências:', err);

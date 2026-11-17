@@ -10,7 +10,7 @@ const {
   formatPecaPassport,
   logEvent
 } = require('../utils/eventLogger');
-const { dispatchNotification } = require('../utils/notificationHelper');
+const { dispatchNotification, notifyCompatibleWishlistsForNewPeca } = require('../utils/notificationHelper');
 
 const getFrontendBaseUrl = () => process.env.FRONTEND_URL || 'http://localhost:5173';
 
@@ -202,6 +202,9 @@ router.post('/', validate(createPecaSchema), async (req, res) => {
         respectPreferences: false
       });
     }
+
+    // Dispara alerta automático para usuários que têm peças da mesma categoria na Lista de Desejos
+    await notifyCompatibleWishlistsForNewPeca(data);
 
     res.status(201).json(formatPecaPassport(data, getFrontendBaseUrl()));
   } catch (err) {

@@ -332,6 +332,161 @@ const markNotificationRead = async ({ id, userId, markAll = false }) => {
   return updated;
 };
 
+const normalizeCategory = (text) =>
+  String(text || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+
+const categoriesMatch = (catA, catB) => {
+  const a = normalizeCategory(catA);
+  const b = normalizeCategory(catB);
+  if (!a || !b) return false;
+  if (a === b || a.includes(b) || b.includes(a)) return true;
+  if (a.includes('arte') && b.includes('arte')) return true;
+  return false;
+};
+
+/**
+ * Quando uma nova peça entra no acervo, notifica automaticamente os usuários
+ * que possuem peças da mesma categoria na Lista de Desejos e ativaram "Peças compatíveis"
+ */
+const notifyCompatibleWishlistsForNewPeca = async (newPeca) => {
+  if (!newPeca || !newPeca.category || !supabase) return;
+
+  try {
+    const { data: allPecas } = await supabase
+      .from('pecas')
+      .select('id, category');
+
+    const matchingPecaIds = new Set(
+      (allPecas || [])
+        .filter((p) => Number(p.id) !== Number(newPeca.id) && categoriesMatch(p.category, newPeca.category))
+        .map((p) => Number(p.id))
+    );
+
+    if (matchingPecaIds.size === 0) return;
+
+    const targetUsers = new Set();
+
+    const { data: itens } = await supabase
+      .from('itens_lista')
+      .select('peca_id, listas_desejos(user_id)');
+
+    (itens || []).forEach((item) => {
+      if (matchingPecaIds.has(Number(item.peca_id)) && item.listas_desejos?.user_id) {
+        targetUsers.add(String(item.listas_desejos.user_id));
+      }
+    });
+
+    inMemoryItensLista.forEach((item) => {
+      if (matchingPecaIds.has(Number(item.peca_id))) {
+        const lista = inMemoryListas.find((l) => String(l.id) === String(item.lista_id));
+        if (lista?.user_id) targetUsers.add(String(lista.user_id));
+      }
+    });
+
+    const identifier = newPeca.share_token || newPeca.passport_id;
+    for (const uid of targetUsers) {
+      await dispatchNotification({
+        userId: uid,
+        tipo: 'peca_compatível',
+        titulo: `Nova peça de ${newPeca.category} compatível com sua Lista de Desejos`,
+        mensagem: `A peça "${newPeca.name}" (${newPeca.category}) acabou de ser registrada na Lastro e combina com sua Lista de Desejos.`,
+        pecaId: newPeca.id,
+        passportId: newPeca.passport_id,
+        acaoUrl: identifier ? `/passaporte/${identifier}?origem=alerta` : `/peca/${newPeca.id}`,
+        respectPreferences: true
+      });
+    }
+  } catch (err) {
+    console.warn('[notifyCompatibleWishlistsForNewPeca Warning]:', err.message);
+  }
+};
+
+/**
+ * Verifica se já existe no catálogo uma peça compatível com os itens da Lista de Desejos
+ * do usuário (que ainda não esteja na lista dele e não tenha sido notificada) e envia o alerta específico.
+ */
+const checkAndNotifyExistingCompatiblePecaForUser = async (userId) => {
+  if (!userId || !supabase) return null;
+
+  try {
+    const prefs = await getUserPreferences(userId);
+    if (!prefs.notificarPecasCompativeis) return null;
+
+    const { data: allPecas } = await supabase
+      .from('pecas')
+      .select('id, name, category, passport_id, share_token')
+      .order('id', { ascending: true });
+
+    if (!allPecas || allPecas.length === 0) return null;
+
+    const savedPecaIds = new Set();
+    const { data: listas } = await supabase
+      .from('listas_desejos')
+      .select('id')
+      .eq('user_id', String(userId));
+
+    if (listas && listas.length > 0) {
+      const listaIds = listas.map((l) => l.id);
+      const { data: itens } = await supabase
+        .from('itens_lista')
+        .select('peca_id')
+        .in('lista_id', listaIds);
+      (itens || []).forEach((i) => {
+        if (i.peca_id) savedPecaIds.add(Number(i.peca_id));
+      });
+    }
+
+    const memListaIds = inMemoryListas
+      .filter((l) => String(l.user_id) === String(userId))
+      .map((l) => String(l.id));
+    inMemoryItensLista
+      .filter((i) => memListaIds.includes(String(i.lista_id)))
+      .forEach((i) => {
+        if (i.peca_id) savedPecaIds.add(Number(i.peca_id));
+      });
+
+    if (savedPecaIds.size === 0) return null;
+
+    const savedPecas = allPecas.filter((p) => savedPecaIds.has(Number(p.id)));
+    const favoriteCategories = savedPecas.map((p) => p.category).filter(Boolean);
+
+    const existingNotifs = await listUserNotifications({ userId, limit: 50 });
+    const alreadyNotifiedPecaIds = new Set(
+      (existingNotifs || [])
+        .filter((n) => n.tipo === 'peca_compatível' && n.peca_id)
+        .map((n) => Number(n.peca_id))
+    );
+
+    const compatiblePeca = allPecas.find(
+      (p) =>
+        !savedPecaIds.has(Number(p.id)) &&
+        !alreadyNotifiedPecaIds.has(Number(p.id)) &&
+        favoriteCategories.some((favCat) => categoriesMatch(p.category, favCat))
+    );
+
+    if (!compatiblePeca) return null;
+
+    const identifier = compatiblePeca.share_token || compatiblePeca.passport_id;
+    return await dispatchNotification({
+      userId,
+      tipo: 'peca_compatível',
+      titulo: `Peça compatível encontrada: ${compatiblePeca.name}`,
+      mensagem: `Encontramos no acervo a peça "${compatiblePeca.name}" (${compatiblePeca.category}), compatível com os itens da sua Lista de Desejos.`,
+      pecaId: compatiblePeca.id,
+      passportId: compatiblePeca.passport_id,
+      acaoUrl: identifier ? `/passaporte/${identifier}?origem=alerta` : `/peca/${compatiblePeca.id}`,
+      respectPreferences: true
+    });
+  } catch (err) {
+    console.warn('[checkAndNotifyExistingCompatiblePecaForUser Warning]:', err.message);
+    return null;
+  }
+};
+
 module.exports = {
   getDefaultPreferences,
   getUserPreferences,
@@ -340,6 +495,8 @@ module.exports = {
   dispatchNotification,
   listUserNotifications,
   markNotificationRead,
+  notifyCompatibleWishlistsForNewPeca,
+  checkAndNotifyExistingCompatiblePecaForUser,
   inMemoryPreferences,
   inMemoryNotifications,
   inMemoryListas,
