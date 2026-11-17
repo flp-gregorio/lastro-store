@@ -40,6 +40,7 @@ const Auth = () => {
         if (data.token) {
           localStorage.setItem('token', data.token);
           localStorage.setItem('user', JSON.stringify(data.user));
+          if (data.user?.id) localStorage.setItem('userId', String(data.user.id));
           setTimeout(() => navigate('/dashboard'), 1200);
         } else {
           setTimeout(() => setIsRegister(false), 1500);
@@ -47,6 +48,7 @@ const Auth = () => {
       } else {
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
+        if (data.user?.id) localStorage.setItem('userId', String(data.user.id));
         navigate('/dashboard');
       }
     } catch (err) {
