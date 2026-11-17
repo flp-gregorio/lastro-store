@@ -15,7 +15,7 @@ import {
   Loader2,
   Bell,
 } from 'lucide-react';
-import { apiUrl } from '../api';
+import { apiUrl, getCurrentUserId } from '../api';
 
 const formatPrice = (value) => {
   if (!value && value !== 0) return 'Não informado';
@@ -91,7 +91,7 @@ const BuyerDashboard = ({ user, onLogout }) => {
     canalPush: true,
   });
   const [loading, setLoading] = useState(true);
-  const userId = localStorage.getItem('userId') || 'anon_user';
+  const userId = getCurrentUserId();
 
   const loadWishlists = useCallback(async () => {
     try {
@@ -111,7 +111,7 @@ const BuyerDashboard = ({ user, onLogout }) => {
       if (res.ok) {
         const data = await res.json();
         const all = Array.isArray(data) ? data : [];
-        const owned = all.filter((p) => String(p.owner_id) === String(userId));
+        const owned = all.filter((p) => String(p.ownerId || p.owner_id) === String(userId));
         setOwnedPieces(owned);
       }
     } catch (err) {
@@ -519,11 +519,11 @@ const BuyerDashboard = ({ user, onLogout }) => {
                   </div>
                   <div className="flex justify-between text-xs font-sans">
                     <span className="text-gray-500">ID do Passaporte</span>
-                    <span className="text-gray-200 font-mono text-[10px]">{peca.passport_id}</span>
+                    <span className="text-gray-200 font-mono text-[10px]">{peca.passportId || peca.passport_id}</span>
                   </div>
                 </div>
                 <Link
-                  to={`/passaporte/${peca.share_token || peca.passport_id}?origem=dashboard_comprador`}
+                  to={`/passaporte/${peca.shareToken || peca.share_token || peca.passportId || peca.passport_id}?origem=dashboard_comprador`}
                   className="w-full bg-white text-black py-2.5 font-sans uppercase tracking-widest text-xs font-medium flex items-center justify-center hover:bg-gray-200 transition-colors"
                 >
                   <FileText className="w-4 h-4 mr-2" /> Acessar Passaporte
@@ -693,7 +693,7 @@ const SellerDashboard = ({ user, onLogout }) => {
   });
   const [pieces, setPieces] = useState([]);
   const [loading, setLoading] = useState(true);
-  const userId = localStorage.getItem('userId') || 'anon_user';
+  const userId = getCurrentUserId();
 
   // Notificar peças compatíveis
   const [alertOpen, setAlertOpen] = useState(false);
@@ -713,7 +713,7 @@ const SellerDashboard = ({ user, onLogout }) => {
       userId: '',
       titulo: `Nova peça compatível: ${peca.name}`,
       mensagem: `Uma nova peça da curadoria combina com seus interesses: ${peca.name}.`,
-      acaoUrl: `/passaporte/${peca.share_token || peca.passport_id}?origem=alerta`,
+      acaoUrl: `/passaporte/${peca.shareToken || peca.share_token || peca.passportId || peca.passport_id}?origem=alerta`,
     });
     setAlertOpen(true);
   };
@@ -727,7 +727,7 @@ const SellerDashboard = ({ user, onLogout }) => {
         body: JSON.stringify({
           userId: alertForm.userId || undefined,
           pecaId: alertTargetPeca?.id || undefined,
-          passportId: alertTargetPeca?.passport_id || undefined,
+          passportId: alertTargetPeca?.passportId || alertTargetPeca?.passport_id || undefined,
           titulo: alertForm.titulo || undefined,
           mensagem: alertForm.mensagem || undefined,
           acaoUrl: alertForm.acaoUrl || undefined,
@@ -750,7 +750,7 @@ const SellerDashboard = ({ user, onLogout }) => {
       if (res.ok) {
         const data = await res.json();
         const all = Array.isArray(data) ? data : [];
-        const mine = all.filter((p) => String(p.owner_id) === String(userId));
+        const mine = all.filter((p) => String(p.ownerId || p.owner_id) === String(userId));
         setPieces(mine);
 
         setStats({
@@ -892,7 +892,7 @@ const SellerDashboard = ({ user, onLogout }) => {
                         />
                         <div>
                           <h4 className="font-serif text-gray-200 text-sm">{peca.name}</h4>
-                          <p className="text-gray-500 font-mono text-[10px]">{peca.passport_id}</p>
+                          <p className="text-gray-500 font-mono text-[10px]">{peca.passportId || peca.passport_id}</p>
                         </div>
                       </div>
                     </td>
@@ -911,12 +911,12 @@ const SellerDashboard = ({ user, onLogout }) => {
                       </span>
                     </td>
                     <td className="py-4 text-gray-400 font-sans text-xs">
-                      {peca.conservation_state || 'Não informado'}
+                      {peca.conservationState || peca.conservation_state || 'Não informado'}
                     </td>
                     <td className="py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <Link
-                          to={`/passaporte/${peca.share_token || peca.passport_id}?origem=link_vendedor`}
+                          to={`/passaporte/${peca.shareToken || peca.share_token || peca.passportId || peca.passport_id}?origem=link_vendedor`}
                           className="text-gray-400 hover:text-[#A69076] transition-colors p-1"
                           title="Ver passaporte"
                         >
@@ -1067,6 +1067,9 @@ const Dashboard = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     localStorage.removeItem('userId');
+    localStorage.removeItem('userRole');
+    window.dispatchEvent(new Event('storage'));
+    window.dispatchEvent(new Event('lastro:notifications-updated'));
     navigate('/');
   };
 

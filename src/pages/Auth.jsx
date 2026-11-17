@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { apiUrl } from '../api';
 import { ShieldCheck, UserCheck } from 'lucide-react';
+import { apiUrl } from '../api';
 
 const Auth = () => {
   const [isRegister, setIsRegister] = useState(false);
@@ -21,9 +21,7 @@ const Auth = () => {
     setLoading(true);
 
     const endpoint = isRegister ? '/api/register' : '/api/login';
-    const payload = isRegister
-      ? { email, password, name, role }
-      : { email, password };
+    const payload = isRegister ? { email, password, name, role } : { email, password };
 
     try {
       const response = await fetch(apiUrl(endpoint), {
@@ -41,8 +39,10 @@ const Auth = () => {
       if (data.token && data.user) {
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
-        localStorage.setItem('userId', data.user.id);
-        localStorage.setItem('userRole', data.user.role || 'Comprador');
+        if (data.user.id) localStorage.setItem('userId', String(data.user.id));
+        localStorage.setItem('userRole', data.user.role || role || 'Comprador');
+        window.dispatchEvent(new Event('storage'));
+        window.dispatchEvent(new Event('lastro:notifications-updated'));
 
         const isStoreRep =
           data.user.role === 'EquipeLastro' ||
@@ -50,17 +50,19 @@ const Auth = () => {
           data.user.role === 'Loja' ||
           data.user.role === 'Admin';
 
+        const targetPath = isStoreRep ? '/admin/verificacao' : '/dashboard';
         if (isRegister) {
-          setSuccess('Conta criada com sucesso! Redirecionando...');
-          setTimeout(() => {
-            navigate(isStoreRep ? '/admin/verificacao' : '/dashboard');
-          }, 800);
+          setSuccess('Cadastro realizado com sucesso! Redirecionando...');
+          setTimeout(() => navigate(targetPath), 900);
         } else {
-          navigate(isStoreRep ? '/admin/verificacao' : '/dashboard');
+          navigate(targetPath);
         }
+      } else if (isRegister) {
+        setSuccess('Cadastro realizado com sucesso! Redirecionando...');
+        setTimeout(() => setIsRegister(false), 1200);
       } else {
         setSuccess('Acesso concedido. Redirecionando...');
-        setTimeout(() => navigate('/dashboard'), 800);
+        setTimeout(() => navigate('/dashboard'), 900);
       }
     } catch (err) {
       setError(err.message);
@@ -70,7 +72,7 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center pt-24 pb-16 px-4 bg-[#0a0a0a]">
+    <div className="min-h-screen flex items-center justify-center pt-20 px-4 bg-[#0a0a0a]">
       <div className="max-w-md w-full bg-[#111] border border-gray-800 p-8 shadow-2xl rounded-sm">
         <div className="text-center mb-8">
           <h2 className="text-3xl font-serif text-white tracking-wide">
@@ -120,7 +122,7 @@ const Auth = () => {
                   <button
                     type="button"
                     onClick={() => setRole('Comprador')}
-                    className={`py-2.5 px-3 border text-xs font-sans uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors ${
+                    className={`py-2.5 px-3 border text-xs font-sans uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
                       role === 'Comprador'
                         ? 'border-[#A69076] bg-[#A69076]/10 text-[#A69076]'
                         : 'border-gray-800 text-gray-400 hover:border-gray-700'
@@ -132,7 +134,7 @@ const Auth = () => {
                   <button
                     type="button"
                     onClick={() => setRole('EquipeLastro')}
-                    className={`py-2.5 px-3 border text-xs font-sans uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors ${
+                    className={`py-2.5 px-3 border text-xs font-sans uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
                       role === 'EquipeLastro'
                         ? 'border-[#A69076] bg-[#A69076]/10 text-[#A69076]'
                         : 'border-gray-800 text-gray-400 hover:border-gray-700'

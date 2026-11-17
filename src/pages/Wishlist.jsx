@@ -1,21 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import {
   Plus,
   Trash2,
   Heart,
-  ArrowLeft,
   ChevronRight
 } from 'lucide-react';
-import { apiUrl } from '../api';
+import { apiUrl, getCurrentUserId } from '../api';
 
 const Wishlist = () => {
   const [listas, setListas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeListaId, setActiveListaId] = useState(null);
-  const navigate = useNavigate();
 
-  const userId = localStorage.getItem('userId') || 'anon_user';
+  const userId = getCurrentUserId();
 
   useEffect(() => {
     carregarListas();
@@ -51,13 +49,14 @@ const Wishlist = () => {
         const novaLista = await response.json();
         setListas(prev => [...prev, novaLista]);
         setActiveListaId(novaLista.id);
+        window.dispatchEvent(new Event('lastro:notifications-updated'));
       }
     } catch (err) {
       console.error('Erro ao criar lista:', err);
     }
   };
 
-  const handleSalvarPeca = async (pecaId, passportId) => {
+  const _handleSalvarPeca = async (pecaId, passportId) => {
     if (!activeListaId) {
       alert('Selecione ou crie uma lista primeiro.');
       return;
@@ -66,11 +65,12 @@ const Wishlist = () => {
       const response = await fetch(apiUrl('/api/listas/itens'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ listaId: activeListaId, pecaId, passportId })
+        body: JSON.stringify({ userId, listaId: activeListaId, pecaId, passportId })
       });
       if (response.ok) {
         alert('Peça salva na lista de desejos!');
         carregarListas();
+        window.dispatchEvent(new Event('lastro:notifications-updated'));
       } else if (response.status === 409) {
         alert('Esta peça já está na lista de desejos.');
       } else {

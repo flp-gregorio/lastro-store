@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import {
   Bell,
   Search,
@@ -11,7 +11,7 @@ import {
   ArrowLeft,
   Loader2
 } from 'lucide-react';
-import { apiUrl } from '../api';
+import { apiUrl, getCurrentUserId } from '../api';
 
 const AVAILABLE_CATEGORIES = [
   { id: 'Relógios', label: 'Relógios', icon: Watch, desc: 'Alta relojoaria, peças vintage, cronógrafos raros e alta complicação' },
@@ -32,9 +32,8 @@ const CategoriaTracking = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
-  const navigate = useNavigate();
 
-  const userId = localStorage.getItem('userId') || 'guest_user';
+  const userId = getCurrentUserId();
 
   useEffect(() => {
     carregarCategoriasRastreadas();

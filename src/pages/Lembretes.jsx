@@ -3,10 +3,9 @@ import {
   Plus,
   Clock,
   Trash2,
-  ArrowLeft,
   Edit2
 } from 'lucide-react';
-import { apiUrl } from '../api';
+import { apiUrl, getCurrentUserId } from '../api';
 
 const FREQUENCIAS = {
   mensal: 'Mensal',
@@ -27,7 +26,7 @@ const Lembretes = () => {
   const [editMode, setEditMode] = useState(false);
   const [editId, setEditId] = useState(null);
 
-  const ownerId = localStorage.getItem('userId') || 'anon_user';
+  const ownerId = getCurrentUserId();
 
   useEffect(() => {
     carregarLembretes();
@@ -69,6 +68,7 @@ const Lembretes = () => {
         setEditId(null);
         setForm({ pecaId: '', tipo: 'conservacao', frequencia: 'semestral', proximaNotificacao: '' });
         carregarLembretes();
+        window.dispatchEvent(new Event('lastro:notifications-updated'));
       } else {
         alert('Erro ao salvar lembrete.');
       }

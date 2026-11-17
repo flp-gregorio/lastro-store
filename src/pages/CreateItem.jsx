@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { apiUrl } from '../api';
+import { apiUrl, getCurrentUserId } from '../api';
 import {
   ArrowLeft,
   Upload,
@@ -16,10 +16,10 @@ import {
 } from 'lucide-react';
 
 const CATEGORIES = [
-  'Relógios',
   'Arte',
   'Colecionáveis',
   'Mobiliário',
+  'Relógios',
   'Automotivo',
   'Joias',
   'Diversos'
@@ -140,12 +140,10 @@ const CreateItem = () => {
     const numericPrice = formData.price ? parseFloat(formData.price) : 0;
     const finalImage = formData.image.trim() || 'https://images.unsplash.com/photo-1541961017774-22349e4a1262?q=80&w=1000&auto=format&fit=crop';
 
-    const ownerId = localStorage.getItem('userId');
-
     // Submetido para perícia e curadoria da equipe Lastro.
     const payload = {
+      ownerId: getCurrentUserId(),
       name: formData.name.trim(),
-      ownerId,
       category: formData.category,
       price: numericPrice,
       description: formData.description.trim(),
@@ -169,13 +167,9 @@ const CreateItem = () => {
     };
 
     try {
-      const token = localStorage.getItem('token');
-      const headers = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
       const response = await fetch(apiUrl('/api/pecas'), {
         method: 'POST',
-        headers,
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
 
@@ -187,6 +181,7 @@ const CreateItem = () => {
       const created = await response.json();
       setCreatedPiece(created);
       setSubmitted(true);
+      window.dispatchEvent(new Event('lastro:notifications-updated'));
     } catch (error) {
       console.error(error);
       alert(`Erro ao submeter proposta: ${error.message}`);
@@ -246,16 +241,22 @@ const CreateItem = () => {
             {createdPiece?.id && (
               <Link
                 to={`/peca/${createdPiece.id}`}
-                className="flex-1 flex items-center justify-center gap-2 bg-[#A69076] text-black py-3 px-4 font-sans uppercase tracking-widest text-xs font-semibold hover:bg-[#b8a287] transition-colors rounded"
+                className="flex-1 flex items-center justify-center gap-2 bg-[#A69076] text-black py-3.5 px-4 font-sans uppercase tracking-widest text-xs font-semibold hover:bg-[#b8a287] transition-colors rounded"
               >
                 Ver Peça no Catálogo
               </Link>
             )}
             <Link
               to="/catalogo"
-              className="flex-1 flex items-center justify-center gap-2 bg-white/10 text-white py-3 px-4 font-sans uppercase tracking-widest text-xs font-semibold hover:bg-white/20 transition-colors rounded"
+              className="flex-1 flex items-center justify-center gap-2 bg-white/10 text-white py-3.5 px-4 font-sans uppercase tracking-widest text-xs font-semibold hover:bg-white/20 transition-colors rounded"
             >
               Explorar Catálogo
+            </Link>
+            <Link
+              to="/dashboard"
+              className="flex-1 flex items-center justify-center gap-2 bg-white text-black py-3.5 px-4 font-sans uppercase tracking-widest text-xs font-semibold hover:bg-gray-200 transition-colors rounded"
+            >
+              Voltar ao Painel
             </Link>
           </div>
         </div>

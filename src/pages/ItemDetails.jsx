@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ShieldCheck, ArrowLeft, Info, FileText, Loader2 } from 'lucide-react';
-import { apiUrl } from '../api';
+import { ShieldCheck, ArrowLeft, Info, FileText, Heart, Check, Loader2 } from 'lucide-react';
+import { apiUrl, getCurrentUserId } from '../api';
 import EscrowModal from '../components/EscrowModal';
 
 const ItemDetails = () => {
@@ -9,39 +9,64 @@ const ItemDetails = () => {
   const [item, setItem] = useState(null);
   const [loading, setLoading] = useState(true);
   const [approving, setApproving] = useState(false);
+  const [savingWishlist, setSavingWishlist] = useState(false);
+  const [savedSuccess, setSavedSuccess] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [isEscrowOpen, setIsEscrowOpen] = useState(false);
+
+  const fetchItemAndWishlistStatus = useCallback(async () => {
+    const userId = getCurrentUserId();
+    try {
+      const [itemRes, listasRes] = await Promise.all([
+        fetch(apiUrl(`/api/pecas/${id}`)),
+        fetch(apiUrl(`/api/listas?userId=${encodeURIComponent(userId)}`)).catch(() => null)
+      ]);
+
+      if (!itemRes.ok) throw new Error('Not found');
+      const data = await itemRes.json();
+      setItem(data);
+
+      if (listasRes && listasRes.ok) {
+        const listas = await listasRes.json();
+        if (Array.isArray(listas)) {
+          const alreadyInWishlist = listas.some(
+            (lista) =>
+              Array.isArray(lista.itens) &&
+              lista.itens.some(
+                (entry) =>
+                  Number(entry.peca_id) === Number(data.id) ||
+                  (data.passportId && entry.passport_id === data.passportId)
+              )
+          );
+          setSavedSuccess(alreadyInWishlist);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching item:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
 
   useEffect(() => {
     const stored = localStorage.getItem('user');
     if (stored) {
       try {
         setCurrentUser(JSON.parse(stored));
-      } catch {}
+      } catch {
+        setCurrentUser(null);
+      }
     }
-    fetchItem();
-  }, [id]);
-
-  const fetchItem = async () => {
-    try {
-      const response = await fetch(apiUrl(`/api/pecas/${id}`));
-      if (!response.ok) throw new Error('Not found');
-      const data = await response.json();
-      setItem(data);
-    } catch (error) {
-      console.error('Error fetching item:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    fetchItemAndWishlistStatus();
+  }, [fetchItemAndWishlistStatus]);
 
   const handleApprove = async () => {
-    if (!item) return;
+    if (!item || approving) return;
     setApproving(true);
 
     const token = localStorage.getItem('token');
     const userRole = localStorage.getItem('userRole') || currentUser?.role || 'EquipeLastro';
-    const userId = localStorage.getItem('userId') || currentUser?.id || 'curador';
+    const userId = getCurrentUserId() || 'curador';
 
     try {
       const headers = {
@@ -58,12 +83,65 @@ const ItemDetails = () => {
       });
 
       if (response.ok) {
-        await fetchItem();
+        await fetchItemAndWishlistStatus();
+        window.dispatchEvent(new Event('lastro:notifications-updated'));
       }
     } catch (err) {
       console.error('Erro ao aprovar peça:', err);
     } finally {
       setApproving(false);
+    }
+  };
+
+  // Salva a peça na Lista de Desejos do usuário (criando a lista padrão se necessário)
+  const handleSalvarNaLista = async () => {
+    if (!item || savingWishlist || savedSuccess) return;
+    setSavingWishlist(true);
+    const userId = getCurrentUserId();
+
+    try {
+      const listasRes = await fetch(apiUrl(`/api/listas?userId=${encodeURIComponent(userId)}`));
+      const listas = listasRes.ok ? await listasRes.json() : [];
+
+      let targetListaId = Array.isArray(listas) && listas.length > 0 ? listas[0].id : null;
+
+      if (!targetListaId) {
+        const criarRes = await fetch(apiUrl('/api/listas'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId,
+            nome: 'Minhas peças salvas',
+            tipo: 'simples'
+          })
+        });
+        if (criarRes.ok) {
+          const novaLista = await criarRes.json();
+          targetListaId = novaLista.id;
+        }
+      }
+
+      if (targetListaId) {
+        const addRes = await fetch(apiUrl(`/api/listas/itens?userId=${encodeURIComponent(userId)}`), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId,
+            listaId: targetListaId,
+            pecaId: Number(item.id),
+            passportId: item.passportId
+          })
+        });
+
+        if (addRes.ok || addRes.status === 409) {
+          setSavedSuccess(true);
+          window.dispatchEvent(new Event('lastro:notifications-updated'));
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao salvar peça na lista de desejos:', err);
+    } finally {
+      setSavingWishlist(false);
     }
   };
 
@@ -81,7 +159,7 @@ const ItemDetails = () => {
   const isPending = s === 'UNDER_VALIDATION' || s === 'EM REVISÃO' || s === 'EM REVISAO' || s === 'PENDENTE' || s === 'EM ANÁLISE';
   const isApproved = s === 'APPROVED' || s === 'VERIFICADO' || s === 'DISPONÍVEL' || s === 'VALIDO';
   const displayCategory = /^watches$/i.test(String(item.category || '').trim()) ? 'Relógios' : item.category;
-  const formattedPrice = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.price);
+  const formattedPrice = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.price || 0);
 
   const isStoreRep =
     currentUser?.role === 'EquipeLastro' ||
@@ -91,14 +169,11 @@ const ItemDetails = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 pt-24 min-h-screen bg-[#0a0a0a]">
-      <Link
-        to="/catalogo"
-        className="inline-flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-8 font-sans uppercase tracking-widest text-xs"
-      >
+      <Link to="/catalogo" className="inline-flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-8 font-sans uppercase tracking-widest text-xs">
         <ArrowLeft className="w-4 h-4" /> Voltar ao Catálogo
       </Link>
 
-      {/* Prominent Verification Status Banner */}
+      {/* Banner de Status de Verificação */}
       {isPending ? (
         <div className="mb-8 p-4 bg-amber-950/30 border border-amber-500/40 rounded flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-3">
@@ -117,7 +192,7 @@ const ItemDetails = () => {
             <button
               onClick={handleApprove}
               disabled={approving}
-              className="bg-[#A69076] hover:bg-[#b8a287] text-black px-4 py-2 font-sans uppercase tracking-widest text-xs font-semibold rounded flex items-center gap-2 transition-colors disabled:opacity-50"
+              className="bg-[#A69076] hover:bg-[#b8a287] text-black px-4 py-2 font-sans uppercase tracking-widest text-xs font-semibold rounded flex items-center gap-2 transition-colors disabled:opacity-50 cursor-pointer"
             >
               {approving ? (
                 <>
@@ -224,24 +299,45 @@ const ItemDetails = () => {
             </div>
 
             <Link
-              to={`/passaporte/${item.shareToken || item.passportId}?origem=catalogo`}
+              to={`/passaporte/${item.shareToken || item.passportId}?origem=link_compartilhado`}
               className="mt-6 w-full flex items-center justify-center gap-2 bg-white text-black py-3 font-sans uppercase tracking-widest text-xs font-medium hover:bg-gray-200 transition-colors rounded"
             >
               <FileText className="w-4 h-4" /> Acessar Passaporte Completo
             </Link>
           </div>
 
-          <div className="flex gap-4">
+          <div className="flex flex-col sm:flex-row gap-4">
             <button
               type="button"
               onClick={() => setIsEscrowOpen(true)}
-              className="flex-1 bg-[#A69076] text-black py-4 font-sans uppercase tracking-widest text-sm font-semibold hover:bg-[#b8a287] transition-colors rounded cursor-pointer"
+              className="flex-1 bg-white text-black py-4 font-sans uppercase tracking-widest text-sm hover:bg-gray-200 transition-colors cursor-pointer rounded"
             >
               Enviar Proposta
             </button>
+            <button
+              type="button"
+              onClick={handleSalvarNaLista}
+              disabled={savingWishlist || savedSuccess}
+              className={[
+                'flex-1 py-4 px-6 font-sans uppercase tracking-widest text-xs font-semibold transition-colors flex items-center justify-center gap-2 border rounded',
+                savedSuccess
+                  ? 'bg-emerald-950/40 border-emerald-600 text-emerald-300 cursor-default'
+                  : 'bg-[#A69076] border-[#A69076] text-black hover:bg-[#b8a287] cursor-pointer'
+              ].join(' ')}
+            >
+              {savedSuccess ? (
+                <>
+                  <Check className="w-4 h-4 shrink-0" /> Já adicionado à lista de desejos
+                </>
+              ) : (
+                <>
+                  <Heart className="w-4 h-4 shrink-0" /> {savingWishlist ? 'Salvando...' : 'Salvar na Lista de Desejos'}
+                </>
+              )}
+            </button>
             <Link
               to="/como-funciona"
-              className="px-6 border border-gray-600 hover:border-white transition-colors flex items-center justify-center rounded"
+              className="px-6 py-4 sm:py-0 border border-gray-600 hover:border-white transition-colors flex items-center justify-center cursor-pointer rounded"
               title="Saiba como funciona a custódia Lastro"
               aria-label="Como funciona a custódia Lastro"
             >

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useSearchParams, Link } from 'react-router-dom';
+import { useParams, useSearchParams, Link, useNavigate } from 'react-router-dom';
 import {
   ShieldCheck,
   ShieldX,
@@ -9,7 +9,6 @@ import {
   Check,
   Clock,
   MapPin,
-  Star,
   ChevronDown,
   ChevronRight,
   RefreshCw,
@@ -24,13 +23,7 @@ import {
   Link2,
   RotateCcw,
 } from 'lucide-react';
-import { apiUrl } from '../api';
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-// Sub-components
-// ---------------------------------------------------------------------------
+import { apiUrl, getCurrentUserId } from '../api';
 
 const formatStatusLabel = (status) => {
   const s = String(status || '').toUpperCase();
@@ -45,6 +38,10 @@ const formatStatusLabel = (status) => {
 
 const formatCategoryLabel = (cat) =>
   /^watches$/i.test(String(cat || '').trim()) ? 'Relógios' : cat;
+
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
 
 /** Thin horizontal rule with optional label */
 const SectionDivider = ({ label }) => (
@@ -409,6 +406,11 @@ const SharePanel = ({ passport, onRevoke }) => {
 const Passaporte = () => {
   const { identifier } = useParams();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const [inviteDismissed, setInviteDismissed] = useState(
+    () => localStorage.getItem('lastro_rf16_dismissed') === '1'
+  );
+  const [inviteCompleted, setInviteCompleted] = useState('');
 
   const origin = searchParams.get('origem') || searchParams.get('origin') || 'direto';
   // The backend distinguishes owner vs visitor. We expose an ?owner=1 query for demo purposes.
@@ -486,7 +488,6 @@ const Passaporte = () => {
   const isOwner = tracking?.isOwner || isOwnerParam;
   const hasHistory = Array.isArray(passport.history) && passport.history.length > 0;
   const shareActive = passport.shareStatus === 'active';
-
   const displayStatus = formatStatusLabel(passport.status);
   const displayCategory = formatCategoryLabel(passport.category);
 
@@ -760,6 +761,126 @@ const Passaporte = () => {
                   Gerar QR Code
                 </button>
               </div>
+
+              {/* ---- Convite discreto ao primeiro registro ---- */}
+              {!inviteDismissed && (
+                <div className="mt-8 border border-[#A69076]/30 bg-[#0d0d0d] p-5">
+                  <div className="flex items-start justify-between gap-4 mb-3">
+                    <div>
+                      <span className="text-[9px] uppercase tracking-[0.2em] text-[#A69076] font-sans block mb-1">
+                        Acompanhamento de Acervo
+                      </span>
+                      <h4 className="text-sm font-serif text-white">
+                        Deseja acompanhar esta peça ou registrar seu próprio acervo?
+                      </h4>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        localStorage.setItem('lastro_rf16_dismissed', '1');
+                        setInviteDismissed(true);
+                        try {
+                          await fetch(apiUrl('/api/habito/convite-primeiro-investimento'), {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              userId: getCurrentUserId(),
+                              anonymousId: tracking?.anonymousId || sessionStorage.getItem('lastro_anon_id'),
+                              aceito: false,
+                              acao: 'dispensar',
+                              pecaId: passport.id,
+                              passportId: passport.passportId
+                            })
+                          });
+                        } catch { /* silent */ }
+                      }}
+                      className="text-[10px] uppercase tracking-widest text-gray-500 hover:text-gray-200 font-sans shrink-0 cursor-pointer"
+                    >
+                      Dispensar
+                    </button>
+                  </div>
+
+                  {inviteCompleted ? (
+                    <p className="text-xs text-emerald-400 font-sans">{inviteCompleted}</p>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mt-3">
+                      <button
+                        onClick={async () => {
+                          try {
+                            await fetch(apiUrl('/api/habito/convite-primeiro-investimento'), {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                userId: getCurrentUserId(),
+                                anonymousId: tracking?.anonymousId || sessionStorage.getItem('lastro_anon_id'),
+                                aceito: true,
+                                acao: 'salvar_peca',
+                                pecaId: passport.id,
+                                passportId: passport.passportId
+                              })
+                            });
+                            localStorage.setItem('lastro_rf16_dismissed', '1');
+                            setInviteCompleted('Peça salva! Uma notificação de acompanhamento foi registrada.');
+                            window.dispatchEvent(new Event('lastro:notifications-updated'));
+                          } catch { /* silent */ }
+                        }}
+                        className="border border-[#2a2a2a] hover:border-[#A69076] py-2.5 px-3 text-[10px] uppercase tracking-widest text-gray-200 hover:text-[#A69076] font-sans transition-colors cursor-pointer"
+                      >
+                        Salvar peça
+                      </button>
+
+                      <button
+                        onClick={async () => {
+                          try {
+                            await fetch(apiUrl('/api/habito/convite-primeiro-investimento'), {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                userId: getCurrentUserId(),
+                                anonymousId: tracking?.anonymousId || sessionStorage.getItem('lastro_anon_id'),
+                                aceito: true,
+                                acao: 'criar_lista',
+                                pecaId: passport.id,
+                                passportId: passport.passportId
+                              })
+                            });
+                            localStorage.setItem('lastro_rf16_dismissed', '1');
+                            window.dispatchEvent(new Event('lastro:notifications-updated'));
+                            navigate('/wishlist');
+                          } catch { /* silent */ }
+                        }}
+                        className="border border-[#2a2a2a] hover:border-[#A69076] py-2.5 px-3 text-[10px] uppercase tracking-widest text-gray-200 hover:text-[#A69076] font-sans transition-colors cursor-pointer"
+                      >
+                        Criar lista
+                      </button>
+
+                      <button
+                        onClick={async () => {
+                          try {
+                            await fetch(apiUrl('/api/habito/convite-primeiro-investimento'), {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                userId: getCurrentUserId(),
+                                anonymousId: tracking?.anonymousId || sessionStorage.getItem('lastro_anon_id'),
+                                aceito: true,
+                                acao: 'registrar_peca_propria',
+                                pecaId: passport.id,
+                                passportId: passport.passportId
+                              })
+                            });
+                            localStorage.setItem('lastro_rf16_dismissed', '1');
+                            window.dispatchEvent(new Event('lastro:notifications-updated'));
+                            navigate('/dashboard/nova-peca');
+                          } catch { /* silent */ }
+                        }}
+                        className="border border-[#2a2a2a] hover:border-[#A69076] py-2.5 px-3 text-[10px] uppercase tracking-widest text-gray-200 hover:text-[#A69076] font-sans transition-colors cursor-pointer"
+                      >
+                        Registrar peça própria
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>

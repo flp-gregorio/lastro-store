@@ -1,4 +1,5 @@
 const supabase = require('../config/supabase');
+const authRoutes = require('../routes/auth.routes');
 
 const STORE_ROLES = [
   'equipelastro',
@@ -49,6 +50,38 @@ const authenticate = async (req, res, next) => {
       return next();
     } catch (e) {
       console.warn('[Auth Middleware]: Falha ao decodificar token interno');
+    }
+  }
+
+  // 1b. Internal fallback session token issued by auth.routes.js (`lastro-session-<userId>`)
+  if (token && token.startsWith('lastro-session-')) {
+    const sessionUserId = token.replace('lastro-session-', '').trim();
+    const localUser = authRoutes.getLocalUserById?.(sessionUserId);
+    if (localUser) {
+      req.user = {
+        id: localUser.id,
+        email: localUser.email,
+        role: localUser.role || 'Comprador',
+        name: localUser.name || localUser.email?.split('@')[0]
+      };
+      return next();
+    }
+
+    if (supabase?.auth?.admin?.getUserById) {
+      try {
+        const { data, error } = await supabase.auth.admin.getUserById(sessionUserId);
+        if (!error && data?.user) {
+          req.user = {
+            id: data.user.id,
+            email: data.user.email,
+            role: data.user.user_metadata?.role || 'Comprador',
+            name: data.user.user_metadata?.name || data.user.email?.split('@')[0]
+          };
+          return next();
+        }
+      } catch {
+        // fallback below
+      }
     }
   }
 

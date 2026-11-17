@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Search, X, User, Bell, ShieldCheck, Tag } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Search, X, User, Heart, Clock, Bell, ShieldCheck, Tag } from 'lucide-react';
+import { apiUrl, getCurrentUserId } from '../api';
 
 const CATEGORIES = [
-  'RELÓGIOS',
   'ARTE',
   'COLECIONÁVEIS',
   'MOBILIÁRIO',
+  'RELÓGIOS',
   'AUTOMOTIVO',
   'DIVERSOS'
 ];
@@ -15,8 +16,10 @@ const Navbar = () => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [user, setUser] = useState(null);
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     const checkUser = () => {
@@ -24,7 +27,9 @@ const Navbar = () => {
       if (stored) {
         try {
           setUser(JSON.parse(stored));
-        } catch {}
+        } catch {
+          setUser(null);
+        }
       } else {
         setUser(null);
       }
@@ -32,13 +37,46 @@ const Navbar = () => {
     checkUser();
     window.addEventListener('storage', checkUser);
     return () => window.removeEventListener('storage', checkUser);
-  }, []);
+  }, [location.pathname]);
 
   const isStoreRep =
     user?.role === 'EquipeLastro' ||
     user?.role === 'RepresentanteLoja' ||
     user?.role === 'Loja' ||
     user?.role === 'Admin';
+
+  const fetchUnreadNotifications = useCallback(async () => {
+    const userId = getCurrentUserId();
+    try {
+      const response = await fetch(
+        apiUrl(`/api/notificacoes?userId=${encodeURIComponent(userId)}&lida=false&limit=50`)
+      );
+      if (response.ok) {
+        const data = await response.json();
+        if (Array.isArray(data)) {
+          setUnreadCount(data.filter((n) => !n.lida).length);
+        }
+      }
+    } catch {
+      // silent fallback
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchUnreadNotifications();
+  }, [location.pathname, fetchUnreadNotifications]);
+
+  useEffect(() => {
+    const handleNotificationsUpdated = () => {
+      fetchUnreadNotifications();
+    };
+    window.addEventListener('lastro:notifications-updated', handleNotificationsUpdated);
+    const intervalId = setInterval(fetchUnreadNotifications, 8000);
+    return () => {
+      window.removeEventListener('lastro:notifications-updated', handleNotificationsUpdated);
+      clearInterval(intervalId);
+    };
+  }, [fetchUnreadNotifications]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -56,7 +94,7 @@ const Navbar = () => {
           {/* Left - Logo */}
           <Link to="/" className="flex items-center space-x-3 md:space-x-4">
             <div className="flex flex-col justify-center items-center">
-              <h1 className="text-white text-sm md:text-lg tracking-[0.3em] uppercase font-serif leading-tight antialiased">
+              <h1 className="text-white text-sm md:text-lg tracking-[0.3em] uppercase font-serif leading-tight tracking-wider antialiased">
                 LASTRO
               </h1>
               <span className="text-gray-500 text-[8px] md:text-[9px] tracking-[0.3em] uppercase mt-0.5">
@@ -66,7 +104,7 @@ const Navbar = () => {
           </Link>
 
           {/* Center - Category Filter Links */}
-          <ul className="hidden xl:flex space-x-6">
+          <ul className="hidden lg:flex space-x-6 xl:space-x-8">
             {CATEGORIES.map((cat) => (
               <li key={cat}>
                 <Link
@@ -79,7 +117,7 @@ const Navbar = () => {
             ))}
           </ul>
 
-          {/* Right - Actions */}
+            {/* Right - Actions */}
           <div className="flex items-center space-x-3 md:space-x-4">
             {/* Search Trigger Button */}
             <button
@@ -91,27 +129,17 @@ const Navbar = () => {
               <Search className="h-4 w-4 md:h-5 md:w-5" />
             </button>
 
-            {/* Category Tracking Link */}
+            {/* Categorias de Interesse */}
             <Link
               to="/categorias-rastreadas"
-              className="text-gray-300 hover:text-[#A69076] hidden md:flex items-center gap-1.5 transition-colors px-2 py-1 text-[11px] uppercase tracking-wider font-sans"
+              className="text-gray-300 hover:text-[#A69076] hidden xl:flex items-center gap-1.5 transition-colors px-2 py-1 text-[11px] uppercase tracking-wider font-sans"
               title="Acompanhamento de Categorias"
             >
               <Tag className="w-3.5 h-3.5 text-[#A69076]" />
               Interesses
             </Link>
 
-            {/* Notifications Bell */}
-            <Link
-              to="/notificacoes"
-              className="relative text-gray-300 hover:text-[#A69076] p-1.5 transition-colors"
-              title="Notificações"
-            >
-              <Bell className="h-4 w-4 md:h-5 md:w-5" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-[#A69076] rounded-full"></span>
-            </Link>
-
-            {/* Store Representative Verification Link */}
+            {/* Curadoria (Representante da Loja) */}
             {isStoreRep && (
               <Link
                 to="/admin/verificacao"
@@ -122,13 +150,50 @@ const Navbar = () => {
               </Link>
             )}
 
-            {/* Profile / Dashboard Link */}
+            {/* Profile / Private Access Link */}
             <Link
               to="/dashboard"
-              className="text-white hover:text-[#A69076] hidden sm:block transition-colors p-1"
+              className="text-white hover:text-[#A69076] hidden md:block transition-colors duration-300 p-1"
               title="Painel"
             >
               <User className="h-4 w-4 md:h-5 md:w-5" />
+            </Link>
+
+            {/* Lista de Desejos */}
+            <Link
+              to="/wishlist"
+              className="text-white hover:text-[#A69076] hidden md:block transition-colors duration-300 p-1"
+              title="Lista de Desejos"
+            >
+              <Heart className="h-4 w-4 md:h-5 md:w-5" />
+            </Link>
+
+            {/* Lembretes */}
+            <Link
+              to="/lembretes"
+              className="text-white hover:text-[#A69076] hidden md:block transition-colors duration-300 p-1"
+              title="Lembretes de Conservação"
+            >
+              <Clock className="h-4 w-4 md:h-5 md:w-5" />
+            </Link>
+
+            {/* Notificações com sino tremendo e bolinha com contagem */}
+            <Link
+              to="/notificacoes"
+              className="relative text-white hover:text-[#A69076] transition-colors duration-300 p-1 flex flex-col items-center"
+              title={unreadCount > 0 ? `${unreadCount} notificação(ões) não lida(s)` : 'Notificações'}
+            >
+              <Bell
+                className={[
+                  'h-4 w-4 md:h-5 md:w-5',
+                  unreadCount > 0 ? 'animate-bell-shake text-[#A69076]' : ''
+                ].join(' ')}
+              />
+              {unreadCount > 0 && (
+                <span className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 min-w-[16px] h-[16px] px-1 rounded-full bg-[#A69076] text-black font-sans font-bold text-[9px] leading-[16px] text-center shadow-md">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
             </Link>
 
             {user ? (
@@ -141,25 +206,21 @@ const Navbar = () => {
             ) : (
               <Link
                 to="/login"
-                className="border border-[#A69076] text-[#A69076] px-3 py-1.5 md:px-4 md:py-2 text-[10px] md:text-xs tracking-widest uppercase hover:bg-[#A69076] hover:text-black transition-colors duration-300 font-sans"
+                className="border border-[#A69076] text-[#A69076] px-3 py-1.5 md:px-5 md:py-2 text-[10px] md:text-xs tracking-widest uppercase hover:bg-[#A69076] hover:text-black transition-colors duration-300 font-sans"
               >
-                ENTRAR
+                ACESSO PRIVADO
               </Link>
             )}
 
             {/* Mobile Menu Button */}
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="text-white hover:text-[#A69076] lg:hidden transition-colors p-1"
+              className="text-white hover:text-[#A69076] lg:hidden transition-colors duration-300 p-1"
               aria-label="Menu"
             >
-              {isMobileMenuOpen ? (
-                <X className="h-6 w-6" />
-              ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              )}
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
             </button>
           </div>
         </div>
@@ -181,7 +242,8 @@ const Navbar = () => {
                 <button
                   type="button"
                   onClick={() => setIsSearchOpen(false)}
-                  className="absolute right-4 text-gray-400 hover:text-white"
+                  className="absolute right-3 p-1 text-gray-500 hover:text-white transition-colors"
+                  aria-label="Fechar busca"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -209,11 +271,25 @@ const Navbar = () => {
                 Categorias de Interesse
               </Link>
               <Link
+                to="/wishlist"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="block text-white hover:text-[#A69076] text-sm uppercase tracking-widest font-sans"
+              >
+                Lista de Desejos
+              </Link>
+              <Link
+                to="/lembretes"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="block text-white hover:text-[#A69076] text-sm uppercase tracking-widest font-sans"
+              >
+                Lembretes de Conservação
+              </Link>
+              <Link
                 to="/notificacoes"
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="block text-white hover:text-[#A69076] text-sm uppercase tracking-widest font-sans"
               >
-                Notificações
+                Notificações {unreadCount > 0 ? `(${unreadCount})` : ''}
               </Link>
               <Link
                 to="/dashboard/nova-peca"
@@ -233,14 +309,16 @@ const Navbar = () => {
               )}
             </div>
 
-            <div className="pt-2 space-y-2">
-              <p className="text-[10px] uppercase tracking-widest text-gray-500 font-sans mb-2">Categorias</p>
+            <p className="text-[10px] uppercase tracking-widest text-gray-500 font-sans">
+              Categorias do Acervo
+            </p>
+            <div className="grid grid-cols-2 gap-3">
               {CATEGORIES.map((cat) => (
                 <Link
                   key={cat}
                   to={`/catalogo?categoria=${encodeURIComponent(cat)}`}
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className="block text-gray-400 hover:text-white text-xs uppercase tracking-wider font-sans py-1"
+                  className="text-gray-300 hover:text-[#A69076] text-xs uppercase tracking-wider py-1 font-sans transition-colors"
                 >
                   {cat}
                 </Link>

@@ -10,18 +10,22 @@ const {
   formatPecaPassport,
   logEvent
 } = require('../utils/eventLogger');
+const { dispatchNotification, notifyCompatibleWishlistsForNewPeca } = require('../utils/notificationHelper');
 const { getUsersTrackingCategory } = require('./categorias-rastreadas.routes');
-const { createNotification } = require('./notificacoes.routes');
 const { requireStoreRole } = require('../middlewares/auth');
 
 const getFrontendBaseUrl = () => process.env.FRONTEND_URL || 'http://localhost:5173';
 
-// In-memory fallback cache for pieces
+// Cache local em memória para fallback e reflexo imediato de atualizações recentes
 const localPecas = [];
 
-// GET /api/pecas - Listar todas as peças
+// GET /api/pecas - Listar todas as peças (Supabase + fallback em memória)
 router.get('/', async (req, res) => {
   try {
+    if (!supabase && localPecas.length === 0) {
+      return res.status(500).json({ message: 'Supabase não está configurado no .env' });
+    }
+
     let pieces = [];
 
     if (supabase) {
@@ -34,10 +38,12 @@ router.get('/', async (req, res) => {
         pieces = data;
       } else if (error) {
         console.error('[Supabase GET /pecas Error]:', error.message);
+        if (localPecas.length === 0) {
+          return res.status(500).json({ message: 'Erro ao consultar peças', error: error.message });
+        }
       }
     }
 
-    // Mescla com peças em cache local para garantir disponibilidade e refletir atualizações recentes
     const map = new Map();
     for (const p of pieces) {
       map.set(String(p.id), p);
@@ -59,13 +65,18 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/pecas/:id - Buscar peça específica
+// GET /api/pecas/:id - Buscar peça específica (por id, passport_id ou share_token) no Supabase e fallback local
 router.get('/:id', async (req, res) => {
   const { id } = req.params;
 
   try {
+    if (!supabase && localPecas.length === 0) {
+      return res.status(500).json({ message: 'Supabase não está configurado no .env' });
+    }
+
     const isNumeric = /^\d+$/.test(id);
     let data = null;
+    let error = null;
 
     if (supabase) {
       if (isNumeric) {
@@ -75,6 +86,7 @@ router.get('/:id', async (req, res) => {
           .eq('id', Number(id))
           .maybeSingle();
         data = result.data;
+        error = result.error;
       } else {
         const byPassport = await supabase
           .from('pecas')
@@ -82,8 +94,9 @@ router.get('/:id', async (req, res) => {
           .eq('passport_id', id)
           .maybeSingle();
         data = byPassport.data;
+        error = byPassport.error;
 
-        if (!data) {
+        if (!data && !error) {
           const byToken = await supabase
             .from('pecas')
             .select('*')
@@ -94,7 +107,6 @@ router.get('/:id', async (req, res) => {
       }
     }
 
-    // Mescla com atualizações locais caso existam
     if (data) {
       const localUpdated = localPecas.find(
         (p) => String(p.id) === String(data.id) || p.passport_id === data.passport_id
@@ -111,6 +123,11 @@ router.get('/:id', async (req, res) => {
       );
     }
 
+    if (error && !data) {
+      console.error('[Supabase GET /pecas/:id Error]:', error.message);
+      return res.status(500).json({ message: 'Erro ao buscar peça', error: error.message });
+    }
+
     if (!data) {
       return res.status(404).json({ message: 'Peça não encontrada' });
     }
@@ -122,7 +139,7 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST /api/pecas - Cadastrar nova peça (Stage 3) e notificar usuários rastreadores (Stage 4)
+// POST /api/pecas - Cadastrar nova peça com validação Zod, notificação a rastreadores e compatibilidade com Wishlist
 router.post('/', validate(createPecaSchema), async (req, res) => {
   const {
     name,
@@ -143,14 +160,16 @@ router.post('/', validate(createPecaSchema), async (req, res) => {
   // RNF11: Identificadores não enumeráveis
   const generatedPassportId = generatePassportId();
   const generatedShareToken = generateShareToken();
+  const initialStatus = req.body.status || 'UNDER_VALIDATION';
 
+  // RF03: Campos sem informação ficam como 'Não informado' sem inferência
   const fullPecaPayload = {
     name,
     category,
     price: price ?? 0,
     description: description || '',
     image: image || 'https://images.unsplash.com/photo-1541961017774-22349e4a1262?q=80&w=1000&auto=format&fit=crop',
-    status: 'UNDER_VALIDATION',
+    status: initialStatus,
     passport_id: generatedPassportId,
     expert_name: nonInferredField(expertName || 'Aguardando Curadoria'),
     expert_date: nonInferredField(expertDate || 'Pendente'),
@@ -182,14 +201,14 @@ router.post('/', validate(createPecaSchema), async (req, res) => {
         .single();
 
       if (error && error.message && error.message.includes('column')) {
-        console.warn('[Supabase Schema Fallback]: Tentando inserção com colunas básicas');
+        console.warn('[Supabase Schema Fallback]: Inserindo apenas colunas v1 até que schema_p0_dre_v2.sql seja executado.');
         const legacyPayload = {
           name,
           category,
           price: price ?? 0,
           description: description || '',
           image: fullPecaPayload.image,
-          status: 'UNDER_VALIDATION',
+          status: initialStatus,
           passport_id: generatedPassportId,
           expert_name: fullPecaPayload.expert_name,
           expert_date: fullPecaPayload.expert_date
@@ -202,9 +221,12 @@ router.post('/', validate(createPecaSchema), async (req, res) => {
           .single();
 
         data = legacyResult.data ? { ...fullPecaPayload, ...legacyResult.data } : null;
+        error = legacyResult.error;
       }
 
-      if (data) {
+      if (error) {
+        console.warn('[Supabase POST /pecas Fallback]:', error.message);
+      } else if (data) {
         createdPiece = data;
       }
     }
@@ -230,30 +252,45 @@ router.post('/', validate(createPecaSchema), async (req, res) => {
       metadata: { category: createdPiece.category, status: createdPiece.status }
     });
 
-    // =========================================================================
-    // STAGE 4: Envio da Notificação Inicial para usuários que rastreiam a categoria (Person B)
-    // =========================================================================
+    // RF05 / RF16: Registra notificação do registro da peça para o proprietário
+    if (ownerId) {
+      await dispatchNotification({
+        userId: ownerId,
+        tipo: 'primeiro_investimento',
+        titulo: `Peça registrada: ${createdPiece.name}`,
+        mensagem: `Sua peça "${createdPiece.name}" recebeu o protocolo ${createdPiece.passport_id} e está em análise da curadoria. Ative "Laudo concluído" em Notificações para ser avisado assim que o perito assinar o laudo.`,
+        pecaId: createdPiece.id,
+        passportId: createdPiece.passport_id,
+        acaoUrl: `/passaporte/${createdPiece.share_token || createdPiece.passport_id}?origem=alerta`,
+        respectPreferences: false
+      });
+    }
+
+    // Dispara alerta automático para usuários que têm peças da mesma categoria na Lista de Desejos
+    await notifyCompatibleWishlistsForNewPeca(createdPiece);
+
+    // Dispara notificação inicial para usuários que acompanham a categoria da peça
     try {
       const trackingUserIds = await getUsersTrackingCategory(createdPiece.category);
-
       const displayCat = /^watches$/i.test(String(createdPiece.category || '').trim())
         ? 'Relógios'
         : createdPiece.category;
 
       for (const trackerUserId of trackingUserIds) {
-        // Envia notificação comunicando que nova peça da categoria foi cadastrada e aguarda verificação
-        await createNotification({
+        if (ownerId && String(trackerUserId) === String(ownerId)) continue;
+        await dispatchNotification({
           userId: trackerUserId,
           tipo: 'peca_pendente',
           titulo: `Nova peça em análise: ${createdPiece.name}`,
           mensagem: `Um novo produto da categoria ${displayCat} (${createdPiece.name}) foi cadastrado e está aguardando verificação da curadoria.`,
           pecaId: createdPiece.id,
           passportId: createdPiece.passport_id,
-          acaoUrl: `/peca/${createdPiece.id}`
+          acaoUrl: `/peca/${createdPiece.id}`,
+          respectPreferences: false
         });
       }
     } catch (notifErr) {
-      console.error('[Stage 4 Notification Error]:', notifErr.message);
+      console.error('[Category Tracker Notification Error]:', notifErr.message);
     }
 
     res.status(201).json(formatPecaPassport(createdPiece, getFrontendBaseUrl()));
@@ -263,7 +300,7 @@ router.post('/', validate(createPecaSchema), async (req, res) => {
   }
 });
 
-// PATCH /api/pecas/:id/status - Aprovação e verificação por representante da loja (Person C - Stage 5)
+// PATCH /api/pecas/:id/status - Aprovação e verificação por representante da loja
 router.patch('/:id/status', requireStoreRole, async (req, res) => {
   const { id } = req.params;
   const requestedStatus = req.body.status || 'APPROVED';
@@ -282,7 +319,14 @@ router.patch('/:id/status', requireStoreRole, async (req, res) => {
       }
     }
 
-    if (!peca) {
+    if (peca) {
+      const localUpdated = localPecas.find(
+        (p) => String(p.id) === String(peca.id) || p.passport_id === peca.passport_id
+      );
+      if (localUpdated) {
+        peca = { ...peca, ...localUpdated };
+      }
+    } else {
       peca = localPecas.find((p) => String(p.id) === String(id) || p.passport_id === id);
     }
 
@@ -290,10 +334,10 @@ router.patch('/:id/status', requireStoreRole, async (req, res) => {
       return res.status(404).json({ message: 'Peça não encontrada para verificação' });
     }
 
-    // Idempotência: Se já estiver aprovada, retorna sem gerar notificações duplicadas
+    // Idempotência: se já estiver aprovada, retorna sem gerar notificações duplicadas
     if (peca.status === 'APPROVED' && requestedStatus === 'APPROVED') {
       return res.json({
-        message: 'A peça já está aprovada.',
+        message: 'A peça já está verificada.',
         peca: formatPecaPassport(peca, getFrontendBaseUrl())
       });
     }
@@ -305,7 +349,7 @@ router.patch('/:id/status', requireStoreRole, async (req, res) => {
       {
         date: String(new Date().getFullYear()),
         title: 'Aprovação de Curadoria e Emissão de Passaporte',
-        details: 'Dossiê técnico e originalidade aprovados pela equipe credenciada da Lastro.',
+        details: 'Dossiê técnico e originalidade verificados pela equipe credenciada da Lastro.',
         verifiedBy: expertName
       }
     ];
@@ -344,7 +388,6 @@ router.patch('/:id/status', requireStoreRole, async (req, res) => {
       };
     }
 
-    // Atualiza cache local
     const localIdx = localPecas.findIndex((p) => String(p.id) === String(peca.id));
     if (localIdx !== -1) {
       localPecas[localIdx] = updatedPeca;
@@ -352,7 +395,6 @@ router.patch('/:id/status', requireStoreRole, async (req, res) => {
       localPecas.unshift(updatedPeca);
     }
 
-    // RF19: Registra evento `curadoria_decidida`
     await logEvent({
       eventName: 'curadoria_decidida',
       pecaId: updatedPeca.id,
@@ -363,30 +405,27 @@ router.patch('/:id/status', requireStoreRole, async (req, res) => {
       metadata: { status: requestedStatus, expert: expertName }
     });
 
-    // =========================================================================
-    // STAGE 6: Envio da Segunda Notificação (Aprovação) para Person B
-    // =========================================================================
     if (requestedStatus === 'APPROVED') {
       try {
         const trackingUserIds = await getUsersTrackingCategory(updatedPeca.category);
-
         const displayCat = /^watches$/i.test(String(updatedPeca.category || '').trim())
           ? 'Relógios'
           : updatedPeca.category;
 
         for (const trackerUserId of trackingUserIds) {
-          await createNotification({
+          await dispatchNotification({
             userId: trackerUserId,
             tipo: 'peca_aprovada',
             titulo: `Peça verificada: ${updatedPeca.name}`,
             mensagem: `O produto "${updatedPeca.name}" da categoria ${displayCat} foi verificado pela Curadoria Lastro e já está disponível para consulta.`,
             pecaId: updatedPeca.id,
             passportId: updatedPeca.passport_id,
-            acaoUrl: `/peca/${updatedPeca.id}`
+            acaoUrl: `/peca/${updatedPeca.id}`,
+            respectPreferences: false
           });
         }
       } catch (notifErr) {
-        console.error('[Stage 6 Notification Error]:', notifErr.message);
+        console.error('[Approval Notification Error]:', notifErr.message);
       }
     }
 
@@ -403,8 +442,9 @@ router.patch('/:id/status', requireStoreRole, async (req, res) => {
 // POST /api/pecas/:id/aprovar - Alias direto para aprovação de peça
 router.post('/:id/aprovar', requireStoreRole, async (req, res) => {
   req.body.status = 'APPROVED';
-  // Reencaminha internamente para o handler de PATCH
-  const patchHandler = router.stack.find((layer) => layer.route && layer.route.path === '/:id/status' && layer.route.methods.patch);
+  const patchHandler = router.stack.find(
+    (layer) => layer.route && layer.route.path === '/:id/status' && layer.route.methods.patch
+  );
   if (patchHandler) {
     return patchHandler.handle(req, res);
   }
