@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Search, X, User, Heart, Clock, Bell, ShieldCheck, Tag } from 'lucide-react';
-import { apiUrl, getCurrentUserId } from '../api';
+import { apiUrl, getCurrentUserId, getCurrentUser } from '../api';
 
 const CATEGORIES = [
   'ARTE',
@@ -23,16 +23,7 @@ const Navbar = () => {
 
   useEffect(() => {
     const checkUser = () => {
-      const stored = localStorage.getItem('user');
-      if (stored) {
-        try {
-          setUser(JSON.parse(stored));
-        } catch {
-          setUser(null);
-        }
-      } else {
-        setUser(null);
-      }
+      setUser(getCurrentUser());
     };
     checkUser();
     window.addEventListener('storage', checkUser);

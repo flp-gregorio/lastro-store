@@ -246,6 +246,16 @@ const dispatchNotification = async ({
     }
   }
 
+  if ((tipo === 'peca_pendente' || tipo === 'peca_aprovada') && pecaId != null) {
+    const existingNotifs = await listUserNotifications({ userId, limit: 50 });
+    const duplicate = existingNotifs.find(
+      (n) => n.tipo === tipo && Number(n.peca_id) === Number(pecaId)
+    );
+    if (duplicate) {
+      return { sent: true, deduplicated: true, notificacao: duplicate };
+    }
+  }
+
   const resolvedActionUrl =
     acaoUrl || (passportId ? `/passaporte/${passportId}?origem=alerta` : pecaId ? `/peca/${pecaId}` : null);
 

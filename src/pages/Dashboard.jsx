@@ -15,7 +15,7 @@ import {
   Loader2,
   Bell,
 } from 'lucide-react';
-import { apiUrl, getCurrentUserId } from '../api';
+import { apiUrl, getCurrentUserId, getCurrentUser } from '../api';
 
 const formatPrice = (value) => {
   if (!value && value !== 0) return 'Não informado';
@@ -1055,24 +1055,23 @@ const Dashboard = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    if (!storedUser) {
+    const activeUser = getCurrentUser();
+    if (!activeUser) {
+      localStorage.removeItem('user');
+      sessionStorage.removeItem('user');
       navigate('/login');
       return;
     }
-    try {
-      setUser(JSON.parse(storedUser));
-    } catch {
-      localStorage.removeItem('user');
-      navigate('/login');
-    }
+    setUser(activeUser);
   }, [navigate]);
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    localStorage.removeItem('userId');
-    localStorage.removeItem('userRole');
+    for (const storage of [sessionStorage, localStorage]) {
+      storage.removeItem('token');
+      storage.removeItem('user');
+      storage.removeItem('userId');
+      storage.removeItem('userRole');
+    }
     window.dispatchEvent(new Event('storage'));
     window.dispatchEvent(new Event('lastro:notifications-updated'));
     navigate('/');

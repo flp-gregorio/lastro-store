@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ShieldCheck, ArrowLeft, Info, FileText, Heart, Check, Loader2 } from 'lucide-react';
-import { apiUrl, getCurrentUserId } from '../api';
+import { apiUrl, getCurrentUserId, getCurrentUser, getCurrentToken, getCurrentUserRole } from '../api';
 import EscrowModal from '../components/EscrowModal';
 
 const ItemDetails = () => {
@@ -49,14 +49,7 @@ const ItemDetails = () => {
   }, [id]);
 
   useEffect(() => {
-    const stored = localStorage.getItem('user');
-    if (stored) {
-      try {
-        setCurrentUser(JSON.parse(stored));
-      } catch {
-        setCurrentUser(null);
-      }
-    }
+    setCurrentUser(getCurrentUser());
     fetchItemAndWishlistStatus();
   }, [fetchItemAndWishlistStatus]);
 
@@ -64,8 +57,8 @@ const ItemDetails = () => {
     if (!item || approving) return;
     setApproving(true);
 
-    const token = localStorage.getItem('token');
-    const userRole = localStorage.getItem('userRole') || currentUser?.role || 'EquipeLastro';
+    const token = getCurrentToken();
+    const userRole = getCurrentUserRole() || currentUser?.role || 'EquipeLastro';
     const userId = getCurrentUserId() || 'curador';
 
     try {

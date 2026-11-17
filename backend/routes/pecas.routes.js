@@ -219,6 +219,10 @@ router.post('/', validate(createPecaSchema), async (req, res) => {
     isPublished
   } = req.body;
 
+  const normalizedSubmitCategory = /^watches?$/i.test(String(category || '').trim())
+    ? 'Relógios'
+    : String(category || '').trim();
+
   // RNF11: Identificadores não enumeráveis
   const generatedPassportId = generatePassportId();
   const generatedShareToken = generateShareToken();
@@ -227,7 +231,7 @@ router.post('/', validate(createPecaSchema), async (req, res) => {
   // RF03: Campos sem informação ficam como 'Não informado' sem inferência
   const fullPecaPayload = {
     name,
-    category,
+    category: normalizedSubmitCategory,
     price: price ?? 0,
     description: description || '',
     image: image || 'https://images.unsplash.com/photo-1541961017774-22349e4a1262?q=80&w=1000&auto=format&fit=crop',
@@ -253,6 +257,43 @@ router.post('/', validate(createPecaSchema), async (req, res) => {
   };
 
   try {
+    // Idempotência de submissão: evita duplicação em reenvio dentro de 60s para mesma peça/usuário
+    if (ownerId) {
+      const nowMs = Date.now();
+      const normCat = (val) =>
+        String(val || '')
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .trim()
+          .toLowerCase();
+
+      const isRecentDuplicate = (p) => {
+        if (!p) return false;
+        const st = String(p.status || '').toUpperCase();
+        const isPending = st === 'UNDER_VALIDATION' || st === 'EM ANÁLISE' || st === 'PENDENTE';
+        const sameOwner = String(p.owner_id || '') === String(ownerId);
+        const sameName = String(p.name || '').trim().toLowerCase() === String(name || '').trim().toLowerCase();
+        const sameCat = normCat(p.category) === normCat(normalizedSubmitCategory);
+        const createdMs = p.created_at ? new Date(p.created_at).getTime() : 0;
+        return sameOwner && sameName && sameCat && isPending && createdMs > 0 && nowMs - createdMs <= 60000;
+      };
+
+      let existingPiece = localPecas.find(isRecentDuplicate);
+      if (!existingPiece && supabase) {
+        const { data: recentOwned } = await supabase
+          .from('pecas')
+          .select('*')
+          .eq('owner_id', String(ownerId))
+          .order('id', { ascending: false })
+          .limit(5);
+        existingPiece = (recentOwned || []).find(isRecentDuplicate);
+      }
+
+      if (existingPiece) {
+        return res.status(200).json(formatPecaPassport(existingPiece, getFrontendBaseUrl()));
+      }
+    }
+
     let createdPiece = null;
 
     if (supabase) {
@@ -266,7 +307,7 @@ router.post('/', validate(createPecaSchema), async (req, res) => {
         console.warn('[Supabase Schema Fallback]: Inserindo apenas colunas v1 até que schema_p0_dre_v2.sql seja executado.');
         const legacyPayload = {
           name,
-          category,
+          category: normalizedSubmitCategory,
           price: price ?? 0,
           description: description || '',
           image: fullPecaPayload.image,
@@ -344,7 +385,7 @@ router.post('/', validate(createPecaSchema), async (req, res) => {
           userId: trackerUserId,
           tipo: 'peca_pendente',
           titulo: `Nova peça em análise: ${createdPiece.name}`,
-          mensagem: `Um novo produto da categoria ${displayCat} (${createdPiece.name}) foi cadastrado e está aguardando verificação da curadoria.`,
+          mensagem: `Novo produto da categoria ${displayCat} (${createdPiece.name}) disponível para consulta, aguardando verificação.`,
           pecaId: createdPiece.id,
           passportId: createdPiece.passport_id,
           acaoUrl: `/peca/${createdPiece.id}`,
@@ -399,7 +440,12 @@ router.patch('/:id/status', requireStoreRole, async (req, res) => {
     [peca] = await hydratePecasWithCurationEvents([peca]);
 
     // Idempotência: se já estiver aprovada, retorna sem gerar notificações duplicadas
-    if (peca.status === 'APPROVED' && requestedStatus === 'APPROVED') {
+    const currentStatusUpper = String(peca.status || '').toUpperCase();
+    const requestedStatusUpper = String(requestedStatus || '').toUpperCase();
+    if (
+      (currentStatusUpper === 'APPROVED' || currentStatusUpper === 'VERIFICADO') &&
+      (requestedStatusUpper === 'APPROVED' || requestedStatusUpper === 'VERIFICADO')
+    ) {
       return res.json({
         message: 'A peça já está verificada.',
         peca: formatPecaPassport(peca, getFrontendBaseUrl())
@@ -502,7 +548,7 @@ router.patch('/:id/status', requireStoreRole, async (req, res) => {
             userId: trackerUserId,
             tipo: 'peca_aprovada',
             titulo: `Peça verificada: ${updatedPeca.name}`,
-            mensagem: `O produto "${updatedPeca.name}" da categoria ${displayCat} foi verificado pela Curadoria Lastro e já está disponível para consulta.`,
+            mensagem: `O produto "${updatedPeca.name}" da categoria ${displayCat} foi verificado e já está disponível para consulta.`,
             pecaId: updatedPeca.id,
             passportId: updatedPeca.passport_id,
             acaoUrl: `/peca/${updatedPeca.id}`,

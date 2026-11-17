@@ -80,7 +80,7 @@ const normalizeCategory = (cat) => {
     .trim()
     .toLowerCase();
   if (cleaned === 'relogios' || cleaned === 'relogio' || cleaned === 'watch' || cleaned === 'watches') {
-    return 'watches';
+    return 'relogios';
   }
   return cleaned;
 };
@@ -151,7 +151,8 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ message: 'userId e categoria são obrigatórios' });
   }
 
-  const cleanCategory = String(categoria).trim();
+  const rawCategory = String(categoria).trim();
+  const cleanCategory = /^watches?$/i.test(rawCategory) ? 'Relógios' : rawCategory;
   const norm = normalizeCategory(cleanCategory);
 
   try {

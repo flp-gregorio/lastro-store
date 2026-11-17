@@ -9,7 +9,7 @@ import {
   Loader2,
   RefreshCw
 } from 'lucide-react';
-import { apiUrl } from '../api';
+import { apiUrl, getCurrentUser, getCurrentToken, getCurrentUserRole, getCurrentUserId } from '../api';
 
 const formatCat = (c) => (/^watches?$/i.test(String(c || '').trim()) ? 'Relógios' : c);
 
@@ -21,12 +21,7 @@ const AdminVerify = () => {
   const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      try {
-        setCurrentUser(JSON.parse(storedUser));
-      } catch {}
-    }
+    setCurrentUser(getCurrentUser());
     carregarPecas();
   }, []);
 
@@ -49,9 +44,9 @@ const AdminVerify = () => {
     setApprovingId(item.id);
     setFeedback(null);
 
-    const token = localStorage.getItem('token');
-    const userRole = localStorage.getItem('userRole') || currentUser?.role || 'EquipeLastro';
-    const userId = localStorage.getItem('userId') || currentUser?.id || 'curador_lastro';
+    const token = getCurrentToken();
+    const userRole = getCurrentUserRole() || currentUser?.role || 'EquipeLastro';
+    const userId = getCurrentUserId() || currentUser?.id || 'curador_lastro';
 
     try {
       const headers = {

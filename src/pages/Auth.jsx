@@ -21,7 +21,10 @@ const Auth = () => {
     setLoading(true);
 
     const endpoint = isRegister ? '/api/register' : '/api/login';
-    const payload = isRegister ? { email, password, name, role } : { email, password };
+    const anonymousId = sessionStorage.getItem('lastro_anon_id') || undefined;
+    const payload = isRegister
+      ? { email, password, name, role, anonymousId }
+      : { email, password, anonymousId };
 
     try {
       const response = await fetch(apiUrl(endpoint), {
@@ -37,10 +40,14 @@ const Auth = () => {
       }
 
       if (data.token && data.user) {
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.user));
-        if (data.user.id) localStorage.setItem('userId', String(data.user.id));
-        localStorage.setItem('userRole', data.user.role || role || 'Comprador');
+        const serializedUser = JSON.stringify(data.user);
+        const resolvedRole = data.user.role || role || 'Comprador';
+        for (const storage of [sessionStorage, localStorage]) {
+          storage.setItem('token', data.token);
+          storage.setItem('user', serializedUser);
+          if (data.user.id) storage.setItem('userId', String(data.user.id));
+          storage.setItem('userRole', resolvedRole);
+        }
         window.dispatchEvent(new Event('storage'));
         window.dispatchEvent(new Event('lastro:notifications-updated'));
 
