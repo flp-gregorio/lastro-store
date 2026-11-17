@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShieldCheck, History, FileText, CheckCircle2, Lock } from 'lucide-react';
+import { ShieldCheck, FileText, CheckCircle2, Lock } from 'lucide-react';
 import imgWatch from '../assets/placeholders/silver-watch.jpg';
 
 const DigitalPassportDemo = () => {
@@ -18,7 +18,7 @@ const DigitalPassportDemo = () => {
         <div className="flex flex-col lg:flex-row bg-[#111111] rounded-2xl overflow-hidden border border-[#222222] shadow-[0_0_40px_rgba(0,0,0,0.5)]">
           {/* Left Side: Product Focus */}
           <div className="w-full lg:w-2/5 relative h-80 lg:h-auto bg-[#1a1a1a]">
-            <img src={imgWatch} alt="Silver Elegance Watch" className="absolute inset-0 w-full h-full object-cover opacity-80" />
+            <img src={imgWatch} alt="Relógio Elegância Prateada" className="absolute inset-0 w-full h-full object-cover opacity-80" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent"></div>
 
             <div className="absolute bottom-0 left-0 p-8 w-full">
@@ -37,7 +37,7 @@ const DigitalPassportDemo = () => {
               <h4 className="text-white text-lg font-serif">Registro Permanente</h4>
               <div className="flex items-center text-gray-500 text-xs space-x-2 bg-[#1a1a1a] px-3 py-1.5 rounded-full">
                 <Lock size={12} />
-                <span>Segurança Blockchain</span>
+                <span>Criptografia e Registro Imutável</span>
               </div>
             </div>
 

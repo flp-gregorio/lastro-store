@@ -50,8 +50,11 @@ router.get('/', async (req, res) => {
         .order('created_at', { ascending: false });
 
       if (!listasError && listas) {
+        const visibleListas = listas.filter(
+          (lista) => !String(lista.nome || '').startsWith('__tracked_category__:')
+        );
         const listasComItens = await Promise.all(
-          listas.map(async (lista) => {
+          visibleListas.map(async (lista) => {
             const { data: itens, error: itensError } = await supabase
               .from('itens_lista')
               .select('*')

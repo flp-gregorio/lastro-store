@@ -131,7 +131,7 @@ const Notificacoes = () => {
     }
   };
 
-  const handleSimularGatilho = async (tipoGatilho) => {
+  const handleSolicitarAtualizacao = async (tipoSolicitacao) => {
     setFeedback(null);
     try {
       await fetch(apiUrl('/api/notificacoes/preferencias'), {
@@ -143,16 +143,16 @@ const Notificacoes = () => {
       let endpoint = '/api/notificacoes';
       let payload = {};
 
-      if (tipoGatilho === 'peca_compativel') {
+      if (tipoSolicitacao === 'peca_compativel') {
         endpoint = '/api/habito/alerta-peca-compativel';
         payload = { userId };
-      } else if (tipoGatilho === 'laudo_concluido') {
+      } else if (tipoSolicitacao === 'laudo_concluido') {
         endpoint = '/api/habito/aviso-laudo-concluido';
         payload = {
           usuarioId: userId,
           tipo: 'dono'
         };
-      } else if (tipoGatilho === 'lembrete_conservacao') {
+      } else if (tipoSolicitacao === 'lembrete_conservacao') {
         endpoint = '/api/habito/lembrete-conservacao';
         payload = {
           userId,
@@ -178,13 +178,13 @@ const Notificacoes = () => {
       } else {
         setFeedback({
           type: 'success',
-          text: 'Notificação recebida! Clique em "Abrir Passaporte" no card abaixo para consultar a peça.'
+          text: 'Atualização enviada para sua caixa de notificações. Selecione o card ao lado para consultar os detalhes da peça.'
         });
         carregarNotificacoes();
       }
     } catch (err) {
-      console.error('Erro ao testar gatilho:', err);
-      setFeedback({ type: 'error', text: 'Erro ao disparar notificação.' });
+      console.error('Erro ao solicitar atualização:', err);
+      setFeedback({ type: 'error', text: 'Não foi possível processar a solicitação no momento.' });
     }
   };
 
@@ -374,49 +374,49 @@ const Notificacoes = () => {
             </div>
           </div>
 
-          {/* Painel para testar os alertas e lembretes */}
+          {/* Consultas Imediatas do Acervo */}
           <div className="bg-[#111] border border-gray-800 rounded-lg p-6">
             <div className="flex items-center gap-2 mb-2">
               <Send className="w-4 h-4 text-[#A69076]" />
               <h3 className="text-gray-300 uppercase tracking-widest text-xs font-sans">
-                Testar Alertas e Lembretes
+                Consultas Imediatas do Acervo
               </h3>
             </div>
             <p className="text-xs text-gray-500 font-sans mb-4 leading-relaxed">
-              Teste o recebimento de avisos conforme as preferências selecionadas acima. Se a opção estiver desativada, o envio não será realizado.
+              Solicite uma verificação imediata de compatibilidade, status de laudos periciais ou programação de conservação conforme suas preferências ativas.
             </p>
             <div className="space-y-2.5">
               <button
-                onClick={() => handleSimularGatilho('peca_compativel')}
+                onClick={() => handleSolicitarAtualizacao('peca_compativel')}
                 className="w-full flex items-center justify-between px-4 py-2.5 bg-[#0a0a0a] border border-gray-800 hover:border-[#A69076] text-left text-xs font-sans text-gray-300 hover:text-white transition-colors cursor-pointer"
               >
                 <span className="flex items-center gap-2">
                   <Sparkles className="w-3.5 h-3.5 text-[#A69076]" />
-                  Simular Alerta de Peça Compatível
+                  Buscar Peças Compatíveis com Minha Lista
                 </span>
-                <span className="text-[10px] uppercase tracking-widest text-gray-500">Disparar</span>
+                <span className="text-[10px] uppercase tracking-widest text-gray-500">Consultar</span>
               </button>
 
               <button
-                onClick={() => handleSimularGatilho('laudo_concluido')}
+                onClick={() => handleSolicitarAtualizacao('laudo_concluido')}
                 className="w-full flex items-center justify-between px-4 py-2.5 bg-[#0a0a0a] border border-gray-800 hover:border-[#A69076] text-left text-xs font-sans text-gray-300 hover:text-white transition-colors cursor-pointer"
               >
                 <span className="flex items-center gap-2">
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                  Simular Aviso de Laudo Concluído
+                  Verificar Status de Laudos Periciais
                 </span>
-                <span className="text-[10px] uppercase tracking-widest text-gray-500">Disparar</span>
+                <span className="text-[10px] uppercase tracking-widest text-gray-500">Consultar</span>
               </button>
 
               <button
-                onClick={() => handleSimularGatilho('lembrete_conservacao')}
+                onClick={() => handleSolicitarAtualizacao('lembrete_conservacao')}
                 className="w-full flex items-center justify-between px-4 py-2.5 bg-[#0a0a0a] border border-gray-800 hover:border-[#A69076] text-left text-xs font-sans text-gray-300 hover:text-white transition-colors cursor-pointer"
               >
                 <span className="flex items-center gap-2">
                   <Clock className="w-3.5 h-3.5 text-sky-400" />
-                  Simular Lembrete de Conservação
+                  Receber Resumo de Conservação do Acervo
                 </span>
-                <span className="text-[10px] uppercase tracking-widest text-gray-500">Disparar</span>
+                <span className="text-[10px] uppercase tracking-widest text-gray-500">Solicitar</span>
               </button>
             </div>
           </div>
@@ -440,12 +440,14 @@ const Notificacoes = () => {
             <div className="space-y-3">
               {notificacoes.map((notif) => {
                 const targetUrl =
-                  notif.acao_url ||
-                  (notif.passport_id
-                    ? `/passaporte/${notif.passport_id}?origem=alerta`
-                    : notif.peca_id
+                  (notif.tipo === 'peca_pendente' || notif.tipo === 'peca_aprovada') && notif.peca_id
                     ? `/peca/${notif.peca_id}`
-                    : null);
+                    : notif.acao_url ||
+                      (notif.passport_id
+                        ? `/passaporte/${notif.passport_id}?origem=alerta`
+                        : notif.peca_id
+                        ? `/peca/${notif.peca_id}`
+                        : null);
 
                 return (
                   <div

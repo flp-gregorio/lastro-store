@@ -19,6 +19,65 @@ const getFrontendBaseUrl = () => process.env.FRONTEND_URL || 'http://localhost:5
 // Cache local em memória para fallback e reflexo imediato de atualizações recentes
 const localPecas = [];
 
+const hydratePecasWithCurationEvents = async (pecasList) => {
+  if (!supabase || !Array.isArray(pecasList) || pecasList.length === 0) return pecasList;
+  const pendingIds = pecasList
+    .filter((p) => p && p.id != null && String(p.status || '').toUpperCase() !== 'APPROVED')
+    .map((p) => Number(p.id))
+    .filter((n) => Number.isFinite(n));
+
+  if (pendingIds.length === 0) return pecasList;
+
+  try {
+    const { data, error } = await supabase
+      .from('eventos')
+      .select('peca_id, metadata, created_at')
+      .eq('event_name', 'curadoria_decidida')
+      .in('peca_id', pendingIds)
+      .order('created_at', { ascending: false });
+
+    if (error || !Array.isArray(data) || data.length === 0) return pecasList;
+
+    const latestByPeca = new Map();
+    for (const evt of data) {
+      const key = String(evt.peca_id);
+      if (!latestByPeca.has(key) && evt.metadata?.status) {
+        latestByPeca.set(key, evt);
+      }
+    }
+
+    return pecasList.map((p) => {
+      const evt = latestByPeca.get(String(p.id));
+      if (!evt || String(p.status || '').toUpperCase() === 'APPROVED') return p;
+      const meta = evt.metadata || {};
+      const expertName = meta.expert || p.expert_name;
+      const expertDate =
+        meta.expertDate ||
+        (evt.created_at ? new Date(evt.created_at).toLocaleDateString('pt-BR') : p.expert_date);
+      return {
+        ...p,
+        status: meta.status,
+        expert_name: expertName,
+        expert_date: expertDate,
+        history:
+          Array.isArray(p.history) && p.history.length > 0
+            ? p.history
+            : [
+                {
+                  date: String(new Date(evt.created_at || Date.now()).getFullYear()),
+                  title: 'Aprovação de Curadoria e Emissão de Passaporte',
+                  details: 'Dossiê técnico e originalidade verificados pela equipe credenciada da Lastro.',
+                  verifiedBy: expertName
+                }
+              ]
+      };
+    });
+  } catch (err) {
+    console.warn('[Curation Event Hydration Warning]:', err.message);
+    return pecasList;
+  }
+};
+
 // GET /api/pecas - Listar todas as peças (Supabase + fallback em memória)
 router.get('/', async (req, res) => {
   try {
@@ -56,7 +115,9 @@ router.get('/', async (req, res) => {
       }
     }
 
-    const all = Array.from(map.values()).sort((a, b) => Number(b.id) - Number(a.id));
+    const all = await hydratePecasWithCurationEvents(
+      Array.from(map.values()).sort((a, b) => Number(b.id) - Number(a.id))
+    );
     const baseUrl = getFrontendBaseUrl();
     res.json(all.map((item) => formatPecaPassport(item, baseUrl)));
   } catch (err) {
@@ -132,7 +193,8 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ message: 'Peça não encontrada' });
     }
 
-    res.json(formatPecaPassport(data, getFrontendBaseUrl()));
+    const [hydrated] = await hydratePecasWithCurationEvents([data]);
+    res.json(formatPecaPassport(hydrated, getFrontendBaseUrl()));
   } catch (err) {
     console.error('Erro inesperado ao buscar peça:', err);
     res.status(500).json({ message: 'Erro interno ao buscar peça' });
@@ -272,9 +334,9 @@ router.post('/', validate(createPecaSchema), async (req, res) => {
     // Dispara notificação inicial para usuários que acompanham a categoria da peça
     try {
       const trackingUserIds = await getUsersTrackingCategory(createdPiece.category);
-      const displayCat = /^watches$/i.test(String(createdPiece.category || '').trim())
+      const displayCat = /^watches?$/i.test(String(createdPiece.category || '').trim())
         ? 'Relógios'
-        : createdPiece.category;
+        : String(createdPiece.category || '').trim() || 'Peça';
 
       for (const trackerUserId of trackingUserIds) {
         if (ownerId && String(trackerUserId) === String(ownerId)) continue;
@@ -334,6 +396,8 @@ router.patch('/:id/status', requireStoreRole, async (req, res) => {
       return res.status(404).json({ message: 'Peça não encontrada para verificação' });
     }
 
+    [peca] = await hydratePecasWithCurationEvents([peca]);
+
     // Idempotência: se já estiver aprovada, retorna sem gerar notificações duplicadas
     if (peca.status === 'APPROVED' && requestedStatus === 'APPROVED') {
       return res.json({
@@ -362,22 +426,43 @@ router.patch('/:id/status', requireStoreRole, async (req, res) => {
       updated_at: new Date().toISOString()
     };
 
+    const updateCandidates = [
+      updatePayload,
+      {
+        status: requestedStatus,
+        expert_name: expertName,
+        expert_date: expertDate,
+        history: updatedHistory
+      },
+      {
+        status: requestedStatus,
+        expert_name: expertName,
+        expert_date: expertDate
+      }
+    ];
+
     let updatedPeca = null;
 
     if (supabase) {
-      try {
-        const { data, error } = await supabase
-          .from('pecas')
-          .update(updatePayload)
-          .eq('id', peca.id)
-          .select()
-          .maybeSingle();
+      for (const candidatePayload of updateCandidates) {
+        try {
+          const { data, error } = await supabase
+            .from('pecas')
+            .update(candidatePayload)
+            .eq('id', peca.id)
+            .select()
+            .maybeSingle();
 
-        if (!error && data) {
-          updatedPeca = data;
+          if (!error && data) {
+            updatedPeca = data;
+            break;
+          }
+          if (error) {
+            console.warn('[Supabase Update peca status Warning]:', error.message);
+          }
+        } catch (dbErr) {
+          console.warn('[Supabase Update peca status Warning]:', dbErr.message);
         }
-      } catch (dbErr) {
-        console.warn('[Supabase Update peca status Warning]:', dbErr.message);
       }
     }
 
@@ -402,15 +487,15 @@ router.patch('/:id/status', requireStoreRole, async (req, res) => {
       userId: req.user?.id || null,
       origin: 'direto',
       isOwner: false,
-      metadata: { status: requestedStatus, expert: expertName }
+      metadata: { status: requestedStatus, expert: expertName, expertDate }
     });
 
     if (requestedStatus === 'APPROVED') {
       try {
         const trackingUserIds = await getUsersTrackingCategory(updatedPeca.category);
-        const displayCat = /^watches$/i.test(String(updatedPeca.category || '').trim())
+        const displayCat = /^watches?$/i.test(String(updatedPeca.category || '').trim())
           ? 'Relógios'
-          : updatedPeca.category;
+          : String(updatedPeca.category || '').trim() || 'Peça';
 
         for (const trackerUserId of trackingUserIds) {
           await dispatchNotification({

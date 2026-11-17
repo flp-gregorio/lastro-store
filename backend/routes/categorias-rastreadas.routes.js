@@ -6,6 +6,68 @@ const { logEvent } = require('../utils/eventLogger');
 
 // In-memory fallback cache for tracked categories
 const localTrackedCategories = [];
+const TRACKED_CATEGORY_PREFIX = '__tracked_category__:';
+
+const rowToTrackedRecord = (row) => {
+  if (!row || !String(row.nome || '').startsWith(TRACKED_CATEGORY_PREFIX)) return null;
+  return {
+    id: row.id,
+    user_id: String(row.user_id),
+    categoria: String(row.nome).slice(TRACKED_CATEGORY_PREFIX.length),
+    criado_em: row.created_at || new Date().toISOString()
+  };
+};
+
+const fetchSupabaseTrackedFallback = async (userId = null) => {
+  if (!supabase) return [];
+  try {
+    let query = supabase
+      .from('listas_desejos')
+      .select('id, user_id, nome, tipo, created_at')
+      .eq('tipo', 'curadoria')
+      .like('nome', `${TRACKED_CATEGORY_PREFIX}%`)
+      .order('created_at', { ascending: false });
+
+    if (userId) {
+      query = query.eq('user_id', String(userId));
+    }
+
+    const { data, error } = await query;
+    if (!error && Array.isArray(data)) {
+      return data.map(rowToTrackedRecord).filter(Boolean);
+    }
+  } catch (err) {
+    console.warn('[Supabase Tracked Fallback Read Warning]:', err.message);
+  }
+  return [];
+};
+
+const fetchSupabaseTrackedCategories = async (userId = null) => {
+  const combined = [];
+  if (supabase) {
+    try {
+      let query = supabase
+        .from('categorias_rastreadas')
+        .select('*')
+        .order('criado_em', { ascending: false });
+
+      if (userId) {
+        query = query.eq('user_id', String(userId));
+      }
+
+      const { data, error } = await query;
+      if (!error && Array.isArray(data)) {
+        combined.push(...data);
+      }
+    } catch (err) {
+      console.warn('[Supabase categorias_rastreadas Read Warning]:', err.message);
+    }
+
+    const fallbackRows = await fetchSupabaseTrackedFallback(userId);
+    combined.push(...fallbackRows);
+  }
+  return combined;
+};
 
 /**
  * Normalizes category string to match English and Portuguese equivalents
@@ -30,22 +92,11 @@ const getUsersTrackingCategory = async (categoria) => {
   const normTarget = normalizeCategory(categoria);
   const matchedUserIds = new Set();
 
-  // 1. Try querying Supabase
-  if (supabase) {
-    try {
-      const { data, error } = await supabase
-        .from('categorias_rastreadas')
-        .select('*');
-
-      if (!error && Array.isArray(data)) {
-        for (const record of data) {
-          if (normalizeCategory(record.categoria) === normTarget) {
-            matchedUserIds.add(record.user_id);
-          }
-        }
-      }
-    } catch (err) {
-      console.warn('[Supabase getUsersTrackingCategory Error]:', err.message);
+  // 1. Query Supabase (primary table + listas_desejos curadoria fallback)
+  const dbRecords = await fetchSupabaseTrackedCategories();
+  for (const record of dbRecords) {
+    if (normalizeCategory(record.categoria) === normTarget) {
+      matchedUserIds.add(record.user_id);
     }
   }
 
@@ -68,22 +119,10 @@ router.get('/', async (req, res) => {
   }
 
   try {
-    let result = [];
+    // 1. Consulta Supabase (tabela dedicada + fallback listas_desejos)
+    const result = await fetchSupabaseTrackedCategories(userId);
 
-    // 1. Tenta Supabase
-    if (supabase) {
-      const { data, error } = await supabase
-        .from('categorias_rastreadas')
-        .select('*')
-        .eq('user_id', userId)
-        .order('criado_em', { ascending: false });
-
-      if (!error && Array.isArray(data)) {
-        result = data;
-      }
-    }
-
-    // 2. Se vazio ou erro, combina com o cache em memória
+    // 2. Combina com o cache em memória
     const fromLocal = localTrackedCategories.filter((item) => String(item.user_id) === String(userId));
     const combinedMap = new Map();
 
@@ -135,28 +174,21 @@ router.post('/', async (req, res) => {
       criado_em: new Date().toISOString()
     };
 
-    // 2. Tenta salvar no Supabase
+    // 2. Tenta verificar duplicidade e salvar no Supabase (tabela dedicada ou listas_desejos)
     let savedInSupabase = false;
     if (supabase) {
+      const existingSupabase = await fetchSupabaseTrackedCategories(userId);
+      const match = existingSupabase.find((item) => normalizeCategory(item.categoria) === norm);
+
+      if (match) {
+        localTrackedCategories.push(match);
+        return res.status(200).json({
+          message: 'Categoria já estava rastreada',
+          data: match
+        });
+      }
+
       try {
-        const { data: existingSupabase } = await supabase
-          .from('categorias_rastreadas')
-          .select('*')
-          .eq('user_id', String(userId));
-
-        const isDuplicateInDb = (existingSupabase || []).some(
-          (item) => normalizeCategory(item.categoria) === norm
-        );
-
-        if (isDuplicateInDb) {
-          const match = existingSupabase.find((item) => normalizeCategory(item.categoria) === norm);
-          localTrackedCategories.push(match);
-          return res.status(200).json({
-            message: 'Categoria já estava rastreada',
-            data: match
-          });
-        }
-
         const { data, error } = await supabase
           .from('categorias_rastreadas')
           .insert([newRecord])
@@ -170,6 +202,34 @@ router.post('/', async (req, res) => {
         }
       } catch (dbErr) {
         console.warn('[Supabase Insert categorias_rastreadas Warning]:', dbErr.message);
+      }
+
+      if (!savedInSupabase) {
+        try {
+          const { data: fallbackRow, error: fallbackErr } = await supabase
+            .from('listas_desejos')
+            .insert([
+              {
+                user_id: String(userId),
+                nome: `${TRACKED_CATEGORY_PREFIX}${cleanCategory}`,
+                tipo: 'curadoria'
+              }
+            ])
+            .select('id, user_id, nome, tipo, created_at')
+            .single();
+
+          if (!fallbackErr && fallbackRow) {
+            const converted = rowToTrackedRecord(fallbackRow);
+            savedInSupabase = true;
+            newRecord.id = converted.id;
+            newRecord.criado_em = converted.criado_em;
+            localTrackedCategories.push(converted);
+          } else if (fallbackErr) {
+            console.warn('[Supabase Insert tracked fallback Warning]:', fallbackErr.message);
+          }
+        } catch (fallbackCatchErr) {
+          console.warn('[Supabase Insert tracked fallback Warning]:', fallbackCatchErr.message);
+        }
       }
     }
 
@@ -203,10 +263,24 @@ router.delete('/:id', async (req, res) => {
 
   try {
     if (supabase) {
-      await supabase
-        .from('categorias_rastreadas')
-        .delete()
-        .eq('id', id);
+      try {
+        await supabase
+          .from('categorias_rastreadas')
+          .delete()
+          .eq('id', id);
+      } catch (err) {
+        console.warn('[Supabase Delete categorias_rastreadas Warning]:', err.message);
+      }
+
+      try {
+        await supabase
+          .from('listas_desejos')
+          .delete()
+          .eq('id', id)
+          .like('nome', `${TRACKED_CATEGORY_PREFIX}%`);
+      } catch (err) {
+        console.warn('[Supabase Delete tracked fallback Warning]:', err.message);
+      }
     }
 
     const idx = localTrackedCategories.findIndex(

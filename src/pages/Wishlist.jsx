@@ -1,12 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Plus,
   Trash2,
   Heart,
-  ChevronRight
+  ChevronRight,
+  ArrowLeft
 } from 'lucide-react';
 import { apiUrl, getCurrentUserId } from '../api';
+
+const formatCat = (c) => (/^watches?$/i.test(String(c || '').trim()) ? 'Relógios' : c);
 
 const Wishlist = () => {
   const [listas, setListas] = useState([]);
@@ -15,18 +18,14 @@ const Wishlist = () => {
 
   const userId = getCurrentUserId();
 
-  useEffect(() => {
-    carregarListas();
-  }, []);
-
-  const carregarListas = async () => {
+  const carregarListas = useCallback(async () => {
     try {
       const response = await fetch(apiUrl(`/api/listas?userId=${userId}`));
       if (response.ok) {
         const data = await response.json();
         setListas(Array.isArray(data) ? data : []);
-        if (data.length > 0 && !activeListaId) {
-          setActiveListaId(data[0].id);
+        if (Array.isArray(data) && data.length > 0) {
+          setActiveListaId((prev) => prev || data[0].id);
         }
       }
     } catch (err) {
@@ -34,7 +33,11 @@ const Wishlist = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId]);
+
+  useEffect(() => {
+    carregarListas();
+  }, [carregarListas]);
 
   const handleCriarLista = async () => {
     const nome = prompt('Nome da nova lista de desejos:', 'Minhas peças salvas');
@@ -107,19 +110,27 @@ const Wishlist = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 pt-24 min-h-screen">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 border-b border-gray-800 pb-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 border-b border-gray-800 pb-6 gap-4">
         <div>
           <h1 className="text-4xl font-serif mb-2">Lista de Desejos</h1>
           <p className="text-gray-400 font-sans text-sm">
             Organize e acompanhe as peças de seu interesse no acervo da Lastro.
           </p>
         </div>
-        <button
-          onClick={handleCriarLista}
-          className="bg-[#A69076] text-black px-6 py-2.5 font-sans uppercase tracking-widest text-xs font-medium hover:bg-[#b8a287] transition-colors flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" /> Nova Lista
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={handleCriarLista}
+            className="bg-[#A69076] text-black px-6 py-2.5 font-sans uppercase tracking-widest text-xs font-medium hover:bg-[#b8a287] transition-colors flex items-center gap-2 cursor-pointer"
+          >
+            <Plus className="w-4 h-4" /> Nova Lista
+          </button>
+          <Link
+            to="/dashboard"
+            className="border border-gray-700 text-gray-300 px-4 py-2.5 hover:border-white transition-colors text-xs font-sans uppercase tracking-wider flex items-center gap-2 rounded"
+          >
+            <ArrowLeft className="w-4 h-4" /> Voltar ao Painel
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -181,17 +192,17 @@ const Wishlist = () => {
                                 className="object-cover w-full h-full opacity-90"
                               />
                             </div>
-                            <p className="text-gray-500 font-sans text-xs uppercase tracking-widest mb-1">{peca.category}</p>
+                            <p className="text-gray-500 font-sans text-xs uppercase tracking-widest mb-1">{formatCat(peca.category)}</p>
                             <h3 className="font-serif text-gray-200 mb-2">{peca.name}</h3>
                             <p className="font-sans text-[#A69076] font-medium mb-4">
                               {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(peca.price || 0)}
                             </p>
-                            <div className="flex items-center justify-between">
+                            <div className="flex items-center justify-between gap-2">
                               <Link
                                 to={`/peca/${peca.id}`}
                                 className="flex-1 bg-white text-black py-2.5 font-sans uppercase tracking-widest text-xs font-medium text-center hover:bg-gray-200 transition-colors"
                               >
-                                Ver Passaporte
+                                Ver Detalhes da Peça
                               </Link>
                               <button
                                 onClick={(e) => {

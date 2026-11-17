@@ -22,7 +22,7 @@ const EscrowModal = ({ isOpen, onClose, price }) => {
         <div className="border-b border-[#A69076]/20 p-6 flex justify-between items-center bg-[#141414]">
           <div className="flex items-center gap-3">
             <Lock className="text-[#A69076]" size={20} />
-            <h2 className="text-xl font-serif text-white">Proposta com Custódia Protegida (Escrow)</h2>
+            <h2 className="text-xl font-serif text-white">Proposta com Custódia Protegida Lastro</h2>
           </div>
           <button
             onClick={onClose}
@@ -57,7 +57,7 @@ const EscrowModal = ({ isOpen, onClose, price }) => {
           ) : (
             <>
               <p className="text-sm text-gray-300 leading-relaxed mb-8 font-sans">
-                Você está prestes a iniciar uma negociação de alto valor. Para a proteção do comprador e do vendedor, utilizamos o sistema de <strong className="text-[#A69076]">Custódia Protegida (Escrow)</strong>.
+                Você está prestes a iniciar uma negociação de alto valor. Para a proteção do comprador e do vendedor, utilizamos o sistema de <strong className="text-[#A69076]">Custódia Protegida Lastro</strong>.
               </p>
 
               <div className="space-y-6">

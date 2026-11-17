@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Link2, Users, ArrowLeft, RefreshCw, Clock, CreditCard } from 'lucide-react';
 import { apiUrl } from '../api';
 
@@ -8,9 +8,15 @@ const formatPrice = (value) => {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 };
 
+const TIPO_TRANSFERENCIA_LABELS = {
+  venda: 'Venda',
+  revenda: 'Revenda',
+  doacao: 'Doação',
+  heranca: 'Herança'
+};
+
 const Transferencias = () => {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [transferencias, setTransferencias] = useState([]);
   const [historico, setHistorico] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -106,7 +112,7 @@ const Transferencias = () => {
         <div>
           <h1 className="text-4xl font-serif text-white mb-2">Transferência de Passaporte</h1>
           <p className="text-gray-400 font-sans text-sm">
-            Transfira a titularidade de um passaporte para outro usuário. O histórico da peça é preservado.
+            Transfira a titularidade de um passaporte digital para outro colecionador mantendo todo o histórico da peça preservado.
           </p>
         </div>
         <div className="flex gap-3">
@@ -156,12 +162,12 @@ const Transferencias = () => {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">ID do Passaporte *</label>
+                <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">Código do Passaporte Digital *</label>
                 <input type="text" required value={form.passportId} onChange={(e) => setForm({ ...form, passportId: e.target.value })} className="w-full bg-[#0a0a0a] border border-gray-700 px-4 py-3 text-white focus:outline-none focus:border-[#A69076] transition-colors font-sans text-sm" placeholder="Ex: LST-9F4A2C8E1B0D" />
               </div>
               <div>
-                <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">ID do Destinatário *</label>
-                <input type="text" required value={form.paraUsuarioId} onChange={(e) => setForm({ ...form, paraUsuarioId: e.target.value })} className="w-full bg-[#0a0a0a] border border-gray-700 px-4 py-3 text-white focus:outline-none focus:border-[#A69076] transition-colors font-sans text-sm" placeholder="ID do usuário destinatário" />
+                <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">Identificação do Novo Titular *</label>
+                <input type="text" required value={form.paraUsuarioId} onChange={(e) => setForm({ ...form, paraUsuarioId: e.target.value })} className="w-full bg-[#0a0a0a] border border-gray-700 px-4 py-3 text-white focus:outline-none focus:border-[#A69076] transition-colors font-sans text-sm" placeholder="Identificação do novo titular" />
               </div>
               <div>
                 <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">Tipo de Transferência</label>
@@ -173,8 +179,8 @@ const Transferencias = () => {
                 </select>
               </div>
               <div>
-                <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">ID da Peça (opcional)</label>
-                <input type="text" value={form.pecaId} onChange={(e) => setForm({ ...form, pecaId: e.target.value })} className="w-full bg-[#0a0a0a] border border-gray-700 px-4 py-3 text-white focus:outline-none focus:border-[#A69076] transition-colors font-sans text-sm" placeholder="ID numérico da peça" />
+                <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">Código da Peça no Acervo (opcional)</label>
+                <input type="text" value={form.pecaId} onChange={(e) => setForm({ ...form, pecaId: e.target.value })} className="w-full bg-[#0a0a0a] border border-gray-700 px-4 py-3 text-white focus:outline-none focus:border-[#A69076] transition-colors font-sans text-sm" placeholder="Código numérico da peça" />
               </div>
               <div>
                 <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">Valor da Transação (opcional)</label>
@@ -204,7 +210,7 @@ const Transferencias = () => {
             <div className="text-center py-20 border border-dashed border-gray-800 bg-[#0d0d0d]">
               <Users className="w-12 h-12 text-gray-700 mb-4 mx-auto" />
               <p className="text-gray-400 font-serif text-xl mb-2">Nenhuma transferência registrada</p>
-              <p className="text-gray-600 font-sans text-xs mb-6">Use o formulário acima para registrar uma transferência de passaporte para outro usuário.</p>
+              <p className="text-gray-600 font-sans text-xs mb-6">Use o formulário acima para registrar uma transferência de titularidade para outro colecionador.</p>
             </div>
           ) : (
             <div className="divide-y divide-gray-800">
@@ -214,13 +220,13 @@ const Transferencias = () => {
                     <div className="flex items-center gap-3">
                       <Link2 className="w-4 h-4 text-[#A69076]" />
                       <span className="text-xs font-mono text-gray-400 truncate w-48">{t.passport_id}</span>
-                      <span className="text-[10px] bg-[#A69076]/20 text-[#A69076] border border-[#A69076]/30 px-2 py-0.5 rounded-full font-sans ml-2">{t.tipo_transferencia}</span>
+                      <span className="text-[10px] bg-[#A69076]/20 text-[#A69076] border border-[#A69076]/30 px-2 py-0.5 rounded-full font-sans ml-2">{TIPO_TRANSFERENCIA_LABELS[t.tipo_transferencia] || t.tipo_transferencia}</span>
                     </div>
                     <span className="text-xs font-mono text-gray-500">{new Date(t.data_transferencia).toLocaleDateString('pt-BR')}</span>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs text-gray-500 font-sans">
-                    <div><span className="block font-bold text-gray-300 mb-1">De</span><span className="font-mono truncate">{t.de_usuario_id}</span></div>
-                    <div><span className="block font-bold text-gray-300 mb-1">Para</span><span className="font-mono truncate">{t.para_usuario_id}</span></div>
+                    <div><span className="block font-bold text-gray-300 mb-1">Transmitente</span><span className="font-mono truncate">{t.de_usuario_id}</span></div>
+                    <div><span className="block font-bold text-gray-300 mb-1">Novo Titular</span><span className="font-mono truncate">{t.para_usuario_id}</span></div>
                     <div><span className="block font-bold text-gray-300 mb-1">Valor</span><span>{formatPrice(t.valor_transacao)}</span></div>
                     <div><span className="block font-bold text-gray-300 mb-1">Histórico</span><span className="text-emerald-400">Preservado</span></div>
                   </div>
@@ -234,11 +240,11 @@ const Transferencias = () => {
         <div className="bg-[#111] border border-gray-800 rounded-lg overflow-hidden">
           <div className="border-b border-gray-800 p-4 bg-[#0a0a0a]">
             <h2 className="text-xl font-serif text-white mb-1">Histórico de Transferências por Passaporte</h2>
-            <p className="text-gray-500 text-xs">Insira um ID do Passaporte para ver o histórico de transferências dessa peça.</p>
+            <p className="text-gray-500 text-xs">Insira o código do Passaporte Digital para consultar o histórico de titularidade dessa peça.</p>
           </div>
           <div className="p-6">
             <div className="mb-6">
-              <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">ID do Passaporte</label>
+              <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">Código do Passaporte Digital</label>
               <input type="text" value={form.passportId} onChange={(e) => setForm({ ...form, passportId: e.target.value })} className="w-full max-w-md bg-[#0a0a0a] border border-gray-700 px-4 py-3 text-white focus:outline-none focus:border-[#A69076] transition-colors font-sans text-sm" placeholder="Ex: LST-9F4A2C8E1B0D" />
             </div>
             <button onClick={() => form.passportId && loadHistorico(form.passportId)} disabled={!form.passportId} className="bg-[#A69076] text-black px-4 py-2 font-sans uppercase tracking-widest text-xs hover:bg-[#b8a287] transition-colors disabled:opacity-50">Carregar Histórico</button>
@@ -262,9 +268,9 @@ const Transferencias = () => {
                     <span className="text-xs font-mono text-gray-500">{new Date(t.data_transferencia).toLocaleDateString('pt-BR')}</span>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-gray-500 font-sans">
-                    <div><span className="block font-bold text-gray-300 mb-1">De</span><span className="font-mono truncate">{t.de_usuario_id}</span></div>
-                    <div><span className="block font-bold text-gray-300 mb-1">Para</span><span className="font-mono truncate">{t.para_usuario_id}</span></div>
-                    <div><span className="block font-bold text-gray-300 mb-1">Tipo</span><span>{t.tipo_transferencia}</span></div>
+                    <div><span className="block font-bold text-gray-300 mb-1">Transmitente</span><span className="font-mono truncate">{t.de_usuario_id}</span></div>
+                    <div><span className="block font-bold text-gray-300 mb-1">Novo Titular</span><span className="font-mono truncate">{t.para_usuario_id}</span></div>
+                    <div><span className="block font-bold text-gray-300 mb-1">Tipo</span><span>{TIPO_TRANSFERENCIA_LABELS[t.tipo_transferencia] || t.tipo_transferencia}</span></div>
                   </div>
                   <div className="mt-2 text-xs text-gray-400 font-sans">Histórico preservado: Sim</div>
                 </div>

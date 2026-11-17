@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { apiUrl } from '../api';
 
-const formatCat = (c) => (/^watches$/i.test(String(c || '').trim()) ? 'Relógios' : c);
+const formatCat = (c) => (/^watches?$/i.test(String(c || '').trim()) ? 'Relógios' : c);
 
 const AdminVerify = () => {
   const [items, setItems] = useState([]);

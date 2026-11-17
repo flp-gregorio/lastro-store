@@ -158,7 +158,9 @@ const ItemDetails = () => {
   const s = String(item.status || '').toUpperCase();
   const isPending = s === 'UNDER_VALIDATION' || s === 'EM REVISÃO' || s === 'EM REVISAO' || s === 'PENDENTE' || s === 'EM ANÁLISE';
   const isApproved = s === 'APPROVED' || s === 'VERIFICADO' || s === 'DISPONÍVEL' || s === 'VALIDO';
-  const displayCategory = /^watches$/i.test(String(item.category || '').trim()) ? 'Relógios' : item.category;
+  const displayCategory = /^watches?$/i.test(String(item.category || '').trim())
+    ? 'Relógios'
+    : item.category || 'Peça';
   const formattedPrice = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.price || 0);
 
   const isStoreRep =

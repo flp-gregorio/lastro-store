@@ -3,6 +3,18 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { Star, User, ArrowLeft, RefreshCw } from 'lucide-react';
 import { apiUrl } from '../api';
 
+const INTERACAO_LABELS = {
+  consulta: 'Consulta de Acervo',
+  proposta: 'Proposta de Aquisição',
+  negociacao: 'Negociação Concluída',
+  transferencia: 'Transferência de Titularidade',
+};
+
+const VISIBILIDADE_LABELS = {
+  publica: 'Pública',
+  privada: 'Privada',
+};
+
 const Avaliacoes = () => {
   const [searchParams] = useSearchParams();
   const [avaliacoes, setAvaliacoes] = useState([]);
@@ -126,9 +138,9 @@ const Avaliacoes = () => {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 pt-24 min-h-screen bg-[#0a0a0a] text-gray-200">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 border-b border-gray-800 pb-8 gap-4">
         <div>
-          <h1 className="text-4xl font-serif text-white mb-2">Avaliações de Contraparte</h1>
+          <h1 className="text-4xl font-serif text-white mb-2">Avaliações da Comunidade</h1>
           <p className="text-gray-400 font-sans text-sm">
-            Avalie usuários com quem interagiu. Sua avaliação ajuda a construir confiança na comunidade Lastro.
+            Consulte a reputação de colecionadores e parceiros ou registre sua experiência após uma negociação na Lastro.
           </p>
         </div>
         <div className="flex gap-3">
@@ -166,7 +178,7 @@ const Avaliacoes = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">
-                  Usuário Avaliado (ID)
+                  Identificação do Colecionador ou Parceiro
                 </label>
                 <input
                   type="text"
@@ -174,7 +186,7 @@ const Avaliacoes = () => {
                   value={form.avaliadoId}
                   onChange={(e) => setForm({ ...form, avaliadoId: e.target.value })}
                   className="w-full bg-[#0a0a0a] border border-gray-700 px-4 py-3 text-white focus:outline-none focus:border-[#A69076] transition-colors font-sans text-sm rounded"
-                  placeholder="ID do usuário avaliado"
+                  placeholder="Código ou identificação do perfil"
                 />
               </div>
               <div>
@@ -212,14 +224,14 @@ const Avaliacoes = () => {
               </div>
               <div>
                 <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">
-                  ID da Peça (opcional)
+                  Código da Peça no Acervo (opcional)
                 </label>
                 <input
                   type="text"
                   value={form.pecaId}
                   onChange={(e) => setForm({ ...form, pecaId: e.target.value })}
                   className="w-full bg-[#0a0a0a] border border-gray-700 px-4 py-3 text-white focus:outline-none focus:border-[#A69076] transition-colors font-sans text-sm rounded"
-                  placeholder="ID da peça relacionada"
+                  placeholder="Código numérico da peça"
                 />
               </div>
               <div className="md:col-span-2">
@@ -245,7 +257,7 @@ const Avaliacoes = () => {
                     }
                     className="w-4 h-4 text-[#A69076] bg-[#0a0a0a] border-gray-700 rounded focus:ring-[#A69076]"
                   />
-                  Avaliação pública
+                  Tornar avaliação visível publicamente
                 </label>
               </div>
             </div>
@@ -283,7 +295,7 @@ const Avaliacoes = () => {
               <p className="text-3xl font-serif text-[#A69076]">{estatisticas.mediaAvaliacoes}</p>
             </div>
             <div className="bg-[#0a0a0a] p-4 rounded border border-gray-800">
-              <p className="text-gray-500 text-xs uppercase tracking-widest mb-1">ID do Avaliado</p>
+              <p className="text-gray-500 text-xs uppercase tracking-widest mb-1">Perfil Avaliado</p>
               <p className="text-xl font-mono text-gray-300 truncate">{estatisticas.avaliadoId}</p>
             </div>
           </div>
@@ -305,7 +317,7 @@ const Avaliacoes = () => {
             <Star className="w-12 h-12 text-gray-700 mb-4 mx-auto" />
             <p className="text-gray-400 font-serif text-xl mb-2">Nenhuma avaliação encontrada</p>
             <p className="text-gray-600 font-sans text-xs mb-6">
-              Seja o primeiro a avaliar uma contraparte. Sua avaliação ajuda a comunidade Lastro.
+              Seja o primeiro a compartilhar uma experiência com outro colecionador ou parceiro da Lastro.
             </p>
           </div>
         ) : (
@@ -317,7 +329,7 @@ const Avaliacoes = () => {
                     <User className="w-4 h-4 text-gray-500" />
                     <span className="text-xs font-mono text-gray-400 truncate w-48">{a.avaliador_id}</span>
                     <span className="text-[10px] bg-[#A69076]/20 text-[#A69076] border border-[#A69076]/30 px-2 py-0.5 rounded-full font-sans ml-2">
-                      {a.visibilidade}
+                      {VISIBILIDADE_LABELS[a.visibilidade] || a.visibilidade}
                     </span>
                   </div>
                   <span className="text-xs font-mono text-gray-500">
@@ -338,7 +350,7 @@ const Avaliacoes = () => {
                 )}
                 <div className="flex items-center gap-4 text-xs text-gray-500 font-sans">
                   <span>
-                    <span className="font-bold text-gray-300">Tipo:</span> {a.interacao_tipo}
+                    <span className="font-bold text-gray-300">Tipo:</span> {INTERACAO_LABELS[a.interacao_tipo] || a.interacao_tipo}
                   </span>
                   {a.peca_id && (
                     <span>

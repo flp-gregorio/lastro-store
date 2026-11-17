@@ -540,7 +540,7 @@ const BuyerDashboard = ({ user, onLogout }) => {
           <div>
             <h2 className="text-2xl font-serif text-white mb-1">Preferências de Notificação</h2>
             <p className="text-gray-500 font-sans text-xs">
-              Escolha quais alertas deseja receber. O padrão é conservador: tudo desligado. Você pode ativar ou desativar com um toque.
+              Personalize os avisos que deseja receber sobre suas peças e categorias acompanhadas. Você pode alterar suas preferências a qualquer momento.
             </p>
           </div>
         </div>
@@ -641,7 +641,7 @@ const BuyerDashboard = ({ user, onLogout }) => {
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-gray-200 font-sans text-sm font-medium">Push / navegador</h3>
+                    <h3 className="text-gray-200 font-sans text-sm font-medium">Notificações no navegador</h3>
                     <p className="text-gray-500 text-xs mt-1">Receber alertas no navegador</p>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
@@ -792,7 +792,7 @@ const SellerDashboard = ({ user, onLogout }) => {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 pt-24 min-h-screen">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 border-b border-gray-800 pb-8">
         <div>
-          <h1 className="text-4xl font-serif mb-2">Painel do Vendedor</h1>
+          <h1 className="text-4xl font-serif mb-2">Painel de Curadoria e Acervo</h1>
           <p className="text-gray-400 font-sans text-sm">
             Bem-vindo de volta, <span className="text-white">{user.name}</span>
             {' · '}
@@ -958,14 +958,14 @@ const SellerDashboard = ({ user, onLogout }) => {
             </p>
             <form onSubmit={(e) => { e.preventDefault(); handleSendAlert(); }} className="space-y-4">
               <div>
-                <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">ID do Usuário Destinatário *</label>
+                <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">Identificação do Colecionador Destinatário *</label>
                 <input
                   type="text"
                   required
                   value={alertForm.userId}
                   onChange={(e) => setAlertForm({ ...alertForm, userId: e.target.value })}
                   className="w-full bg-[#0a0a0a] border border-gray-700 px-4 py-3 text-white focus:outline-none focus:border-[#A69076] transition-colors font-sans text-sm"
-                  placeholder="ID do usuário"
+                  placeholder="Identificação do colecionador"
                 />
               </div>
               <div>
@@ -987,7 +987,7 @@ const SellerDashboard = ({ user, onLogout }) => {
                 />
               </div>
               <div>
-                <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">URL de Ação</label>
+                <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">Link de Destino</label>
                 <input
                   type="text"
                   value={alertForm.acaoUrl}
@@ -1035,7 +1035,7 @@ const SellerDashboard = ({ user, onLogout }) => {
 
       <div className="mt-12 pt-8 border-t border-gray-800 flex flex-col sm:flex-row justify-between items-center gap-4">
         <p className="text-[10px] text-gray-600 uppercase tracking-widest">
-          Painel operacional orientado à gestão de objetos. Rastreie cada passaporte, cada pendência e cada interação.
+          Gestão integrada de autenticidade, procedência e custódia do acervo Lastro.
         </p>
         <div className="flex items-center gap-2 text-[10px] text-gray-500 font-sans">
           <ShieldCheck className="w-3 h-3 text-[#A69076]" />

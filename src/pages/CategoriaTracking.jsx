@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Bell,
@@ -23,7 +23,7 @@ const AVAILABLE_CATEGORIES = [
 ];
 
 const formatCategoryLabel = (cat) =>
-  /^watches$/i.test(String(cat || '').trim()) ? 'Relógios' : cat;
+  /^watches?$/i.test(String(cat || '').trim()) ? 'Relógios' : String(cat || '').trim();
 
 const CategoriaTracking = () => {
   const [trackedCategories, setTrackedCategories] = useState([]);
@@ -35,11 +35,7 @@ const CategoriaTracking = () => {
 
   const userId = getCurrentUserId();
 
-  useEffect(() => {
-    carregarCategoriasRastreadas();
-  }, [userId]);
-
-  const carregarCategoriasRastreadas = async () => {
+  const carregarCategoriasRastreadas = useCallback(async () => {
     try {
       const response = await fetch(apiUrl(`/api/categorias-rastreadas?userId=${userId}`));
       if (response.ok) {
@@ -51,7 +47,11 @@ const CategoriaTracking = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId]);
+
+  useEffect(() => {
+    carregarCategoriasRastreadas();
+  }, [carregarCategoriasRastreadas]);
 
   const isCategoryTracked = (catLabel) => {
     const norm = (s) => {

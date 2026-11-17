@@ -6,7 +6,9 @@ const ItemCard = ({ item }) => {
   const s = String(item.status || '').toUpperCase();
   const isPending = s === 'UNDER_VALIDATION' || s === 'EM REVISÃO' || s === 'EM REVISAO' || s === 'PENDENTE' || s === 'EM ANÁLISE';
   const isApproved = s === 'APPROVED' || s === 'VERIFICADO' || s === 'DISPONÍVEL' || s === 'VALIDO';
-  const displayCategory = /^watches$/i.test(String(item.category || '').trim()) ? 'Relógios' : item.category;
+  const displayCategory = /^watches?$/i.test(String(item.category || '').trim())
+    ? 'Relógios'
+    : item.category || 'Peça';
 
   return (
     <Link to={`/peca/${item.id || item.passportId}`} className="group block">

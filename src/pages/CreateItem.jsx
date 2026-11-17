@@ -16,10 +16,10 @@ import {
 } from 'lucide-react';
 
 const CATEGORIES = [
+  'Relógios',
   'Arte',
   'Colecionáveis',
   'Mobiliário',
-  'Relógios',
   'Automotivo',
   'Joias',
   'Diversos'

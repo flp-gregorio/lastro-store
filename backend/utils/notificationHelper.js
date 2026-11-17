@@ -198,6 +198,23 @@ const checkNotificationAllowed = (prefs, tipo) => {
   }
 };
 
+const CHECK_CONSTRAINT_FALLBACK_TIPO = {
+  peca_pendente: 'peca_compatível',
+  peca_aprovada: 'laudo_concluido'
+};
+
+const normalizeNotificationRow = (row) => {
+  if (!row || typeof row !== 'object') return row;
+  const titulo = String(row.titulo || '');
+  if (titulo.startsWith('Nova peça em análise:') || titulo.startsWith('Novo item em validação:')) {
+    return { ...row, tipo: 'peca_pendente' };
+  }
+  if (titulo.startsWith('Peça verificada:') || titulo.startsWith('Peça Verificada:')) {
+    return { ...row, tipo: 'peca_aprovada' };
+  }
+  return row;
+};
+
 /**
  * Dispara e armazena uma notificação respeitando o Critério de Aceite 9 (RF14)
  */
@@ -252,9 +269,24 @@ const dispatchNotification = async ({
         .single();
 
       if (!error && data) {
-        return { sent: true, notificacao: data };
+        return { sent: true, notificacao: normalizeNotificationRow(data) };
       }
-      if (error) {
+
+      const fallbackTipo = CHECK_CONSTRAINT_FALLBACK_TIPO[tipo];
+      if (error && fallbackTipo && String(error.message || '').includes('notificacoes_tipo_check')) {
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('notificacoes')
+          .insert([{ ...rowPayload, tipo: fallbackTipo }])
+          .select()
+          .single();
+
+        if (!fallbackError && fallbackData) {
+          return { sent: true, notificacao: { ...fallbackData, tipo } };
+        }
+        if (fallbackError) {
+          console.warn('[Notification Fallback Write]:', fallbackError.message);
+        }
+      } else if (error) {
         console.warn('[Notification Fallback Write]:', error.message);
       }
     }
@@ -294,7 +326,7 @@ const listUserNotifications = async ({ userId, lida, limit = 50 }) => {
 
       const { data, error } = await query;
       if (!error && Array.isArray(data)) {
-        dbRows = data;
+        dbRows = data.map(normalizeNotificationRow);
       }
     }
   } catch (err) {

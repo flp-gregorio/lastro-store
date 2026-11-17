@@ -7,7 +7,7 @@ import imgCarDetail1 from '../assets/placeholders/capricorn-01-zagato-17 - car.w
 import imgCarDetail2 from '../assets/placeholders/capricorn-01-zagato-17 - car.webp'; // Reusing for placeholder
 
 const ProductDetails = () => {
-  const { id } = useParams();
+  const { id: _id } = useParams();
   const [isEscrowOpen, setIsEscrowOpen] = useState(false);
 
   const product = {

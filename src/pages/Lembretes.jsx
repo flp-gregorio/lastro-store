@@ -1,11 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Plus,
   Clock,
   Trash2,
-  Edit2
+  Edit2,
+  ArrowLeft
 } from 'lucide-react';
 import { apiUrl, getCurrentUserId } from '../api';
+
+const TIPOS_LEMBRETE = {
+  conservacao: 'Conservação Preventiva',
+  revisao: 'Revisão Técnica',
+  limpeza: 'Limpeza Especializada',
+  avaliacao: 'Reavaliação Pericial'
+};
 
 const FREQUENCIAS = {
   mensal: 'Mensal',
@@ -28,11 +37,7 @@ const Lembretes = () => {
 
   const ownerId = getCurrentUserId();
 
-  useEffect(() => {
-    carregarLembretes();
-  }, [ownerId]);
-
-  const carregarLembretes = async () => {
+  const carregarLembretes = useCallback(async () => {
     try {
       const response = await fetch(apiUrl(`/api/lembretes?ownerId=${ownerId}&ativo=true`));
       if (response.ok) {
@@ -44,7 +49,11 @@ const Lembretes = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [ownerId]);
+
+  useEffect(() => {
+    carregarLembretes();
+  }, [carregarLembretes]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -111,13 +120,19 @@ const Lembretes = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 pt-24 min-h-screen">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 border-b border-gray-800 pb-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 border-b border-gray-800 pb-6 gap-4">
         <div>
           <h1 className="text-4xl font-serif mb-2">Lembretes de Conservação</h1>
           <p className="text-gray-400 font-sans text-sm">
             Configure lembretes periódicos de manutenção e revisão para preservar o estado de conservação do seu acervo.
           </p>
         </div>
+        <Link
+          to="/dashboard"
+          className="border border-gray-700 text-gray-300 px-4 py-2.5 hover:border-white transition-colors text-xs font-sans uppercase tracking-wider flex items-center gap-2 rounded"
+        >
+          <ArrowLeft className="w-4 h-4" /> Voltar ao Painel
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -129,7 +144,7 @@ const Lembretes = () => {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-gray-400 font-sans text-xs tracking-widest uppercase mb-2">
-                  ID da Peça
+                  Código da Peça no Acervo
                 </label>
                 <input
                   type="number"
@@ -137,7 +152,7 @@ const Lembretes = () => {
                   value={form.pecaId}
                   onChange={e => setForm({ ...form, pecaId: e.target.value })}
                   className="w-full bg-[#0a0a0a] border border-[#2a2a2a] px-4 py-3.5 text-white focus:outline-none focus:border-[#A69076] transition-colors font-sans text-sm"
-                  placeholder="Ex: 123"
+                  placeholder="Ex: 1"
                 />
               </div>
               <div>
@@ -227,7 +242,7 @@ const Lembretes = () => {
                   <div className="flex items-start justify-between mb-3">
                     <div>
                       <h4 className="font-serif text-gray-200 mb-1">Lembrete de {FREQUENCIAS[lembrete.frequencia]?.toLowerCase() || lembrete.frequencia}</h4>
-                      <p className="text-xs text-gray-500 font-sans">Tipo: {lembrete.tipo}</p>
+                      <p className="text-xs text-gray-500 font-sans">Tipo: {TIPOS_LEMBRETE[lembrete.tipo] || lembrete.tipo}</p>
                     </div>
                     <button
                       onClick={() => handleEdit(lembrete)}
