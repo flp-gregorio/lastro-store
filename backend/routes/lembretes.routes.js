@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const express = require('express');
 const router = express.Router();
 const supabase = require('../config/supabase');
@@ -7,33 +8,44 @@ const {
   atualizarLembreteSchema
 } = require('../schemas/habito.schema');
 const { logEvent } = require('../utils/eventLogger');
+const {
+  dispatchNotification,
+  inMemoryLembretes
+} = require('../utils/notificationHelper');
 
 // GET /api/lembretes - Listar lembretes do usuário/peça
 router.get('/', async (req, res) => {
   const { ownerId, pecaId, ativo } = req.query;
 
   try {
-    if (!supabase) {
-      return res.status(500).json({ message: 'Supabase não está configurado no .env' });
+    if (supabase) {
+      let query = supabase
+        .from('lembretes_conservacao')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (ownerId) query = query.eq('owner_id', ownerId);
+      if (pecaId) query = query.eq('peca_id', Number(pecaId));
+      if (ativo !== undefined) query = query.eq('ativo', ativo === 'true');
+
+      const { data, error } = await query;
+
+      if (!error && data) {
+        return res.json(data);
+      }
+      if (error) {
+        console.warn('[Supabase GET /lembretes Fallback]:', error.message);
+      }
     }
 
-    let query = supabase
-      .from('lembretes_conservacao')
-      .select('*')
-      .order('created_at', { ascending: false });
+    const filtered = inMemoryLembretes.filter((l) => {
+      if (ownerId && String(l.owner_id) !== String(ownerId)) return false;
+      if (pecaId && Number(l.peca_id) !== Number(pecaId)) return false;
+      if (ativo !== undefined && Boolean(l.ativo) !== (ativo === 'true')) return false;
+      return true;
+    });
 
-    if (ownerId) query = query.eq('owner_id', ownerId);
-    if (pecaId) query = query.eq('peca_id', Number(pecaId));
-    if (ativo !== undefined) query = query.eq('ativo', ativo === 'true');
-
-    const { data, error } = await query;
-
-    if (error) {
-      console.error('[Supabase GET /lembretes Error]:', error.message);
-      return res.status(500).json({ message: 'Erro ao listar lembretes' });
-    }
-
-    res.json(data || []);
+    res.json(filtered);
   } catch (err) {
     console.error('Erro inesperado ao listar lembretes:', err);
     res.status(500).json({ message: 'Erro interno ao listar lembretes' });
@@ -45,30 +57,44 @@ router.post('/', validate(configurarLembreteSchema), async (req, res) => {
   const { pecaId, tipo, frequencia, proximaNotificacao, ativo, ownerId } = req.body;
 
   try {
-    if (!supabase) {
-      return res.status(500).json({ message: 'Supabase não está configurado no .env' });
+    let savedRecord = null;
+
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('lembretes_conservacao')
+        .insert([
+          {
+            peca_id: pecaId,
+            owner_id: ownerId,
+            tipo,
+            frequencia,
+            proxima_notificacao: proximaNotificacao || null,
+            ativo
+          }
+        ])
+        .select()
+        .single();
+
+      if (!error && data) {
+        savedRecord = data;
+      } else if (error) {
+        console.warn('[Supabase POST /lembretes Fallback]:', error.message);
+      }
     }
 
-    if (!ownerId) {
-      return res.status(400).json({ message: 'ownerId é obrigatório' });
-    }
-
-    const { data, error } = await supabase
-      .from('lembretes_conservacao')
-      .insert([{
+    if (!savedRecord) {
+      savedRecord = {
+        id: crypto.randomUUID(),
         peca_id: pecaId,
         owner_id: ownerId,
         tipo,
         frequencia,
         proxima_notificacao: proximaNotificacao || null,
-        ativo
-      }])
-      .select()
-      .single();
-
-    if (error) {
-      console.error('[Supabase POST /lembretes Error]:', error.message);
-      return res.status(400).json({ message: 'Erro ao configurar lembrete', error: error.message });
+        ativo: ativo !== undefined ? ativo : true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      inMemoryLembretes.unshift(savedRecord);
     }
 
     // RF19: Registra evento `alerta_configurado`
@@ -78,10 +104,27 @@ router.post('/', validate(configurarLembreteSchema), async (req, res) => {
       userId: ownerId,
       origin: 'direto',
       isOwner: true,
-      metadata: { lembreteId: data.id, tipo, frequencia, proximaNotificacao }
+      metadata: { lembreteId: savedRecord.id, tipo, frequencia, proximaNotificacao }
     });
 
-    res.status(201).json(data);
+    // Critério de Aceite 9 (RF09 + RF14): Dispara notificação apenas se `lembretesAtivos` estiver ligado
+    const notifResult = await dispatchNotification({
+      userId: ownerId,
+      tipo: 'lembrete_conservacao',
+      titulo: `Lembrete de ${tipo} agendado (${frequencia})`,
+      mensagem: `Lembrete ${frequencia} de ${tipo} configurado para a peça #${pecaId}. Mantenha o Passaporte Digital atualizado após cada manutenção.`,
+      pecaId,
+      acaoUrl: `/peca/${pecaId}`,
+      respectPreferences: true
+    });
+
+    res.status(201).json({
+      ...savedRecord,
+      notificacaoDisparada: notifResult.sent,
+      notificacaoMensagem: notifResult.sent
+        ? 'Notificação de lembrete enviada.'
+        : notifResult.reason
+    });
   } catch (err) {
     console.error('Erro inesperado ao configurar lembrete:', err);
     res.status(500).json({ message: 'Erro interno ao configurar lembrete de conservação' });
@@ -91,54 +134,65 @@ router.post('/', validate(configurarLembreteSchema), async (req, res) => {
 // PUT /api/lembretes/:lembreteId - Atualizar lembrete (RF09)
 router.put('/:lembreteId', validate(atualizarLembreteSchema), async (req, res) => {
   const { lembreteId } = req.params;
-  const { frequencia, proximaNotificacao, ativo, ownerId } = req.body;
+  const { tipo, frequencia, proximaNotificacao, ativo, ownerId } = req.body;
 
   try {
-    if (!supabase) {
-      return res.status(500).json({ message: 'Supabase não está configurado no .env' });
-    }
-
-    const { data: existente, error: findError } = await supabase
-      .from('lembretes_conservacao')
-      .select('id, owner_id, peca_id')
-      .eq('id', lembreteId)
-      .maybeSingle();
-
-    if (findError || !existente) {
-      return res.status(404).json({ message: 'Lembrete não encontrado' });
-    }
-
-    if (String(existente.owner_id) !== String(ownerId)) {
-      return res.status(403).json({ message: 'Não autorizado a alterar este lembrete' });
-    }
-
     const updateData = { updated_at: new Date().toISOString() };
+    if (tipo !== undefined) updateData.tipo = tipo;
     if (frequencia !== undefined) updateData.frequencia = frequencia;
     if (proximaNotificacao !== undefined) updateData.proxima_notificacao = proximaNotificacao;
     if (ativo !== undefined) updateData.ativo = ativo;
 
-    const { data, error } = await supabase
-      .from('lembretes_conservacao')
-      .update(updateData)
-      .eq('id', lembreteId)
-      .select()
-      .single();
+    if (supabase) {
+      const { data: existente, error: findError } = await supabase
+        .from('lembretes_conservacao')
+        .select('id, owner_id, peca_id')
+        .eq('id', lembreteId)
+        .maybeSingle();
 
-    if (error) {
-      console.error('[Supabase PUT /lembretes Error]:', error.message);
-      return res.status(400).json({ message: 'Erro ao atualizar lembrete', error: error.message });
+      if (!findError && existente) {
+        if (ownerId && String(existente.owner_id) !== String(ownerId)) {
+          return res.status(403).json({ message: 'Não autorizado a alterar este lembrete' });
+        }
+
+        const { data, error } = await supabase
+          .from('lembretes_conservacao')
+          .update(updateData)
+          .eq('id', lembreteId)
+          .select()
+          .single();
+
+        if (!error && data) {
+          await logEvent({
+            eventName: ativo === false ? 'alerta_desativado' : 'alerta_configurado',
+            pecaId: existente.peca_id,
+            userId: ownerId || existente.owner_id,
+            origin: 'direto',
+            isOwner: true,
+            metadata: { lembreteId, acao: 'atualizar', alteracoes: updateData }
+          });
+          return res.json(data);
+        }
+      }
     }
 
+    // Fallback em memória
+    const memItem = inMemoryLembretes.find((l) => String(l.id) === String(lembreteId));
+    if (!memItem) {
+      return res.status(404).json({ message: 'Lembrete não encontrado' });
+    }
+    Object.assign(memItem, updateData);
+
     await logEvent({
-      eventName: 'alerta_configurado',
-      pecaId: existente.peca_id,
-      userId: ownerId,
+      eventName: ativo === false ? 'alerta_desativado' : 'alerta_configurado',
+      pecaId: memItem.peca_id,
+      userId: ownerId || memItem.owner_id,
       origin: 'direto',
       isOwner: true,
       metadata: { lembreteId, acao: 'atualizar', alteracoes: updateData }
     });
 
-    res.json(data);
+    res.json(memItem);
   } catch (err) {
     console.error('Erro inesperado ao atualizar lembrete:', err);
     res.status(500).json({ message: 'Erro interno ao atualizar lembrete' });
@@ -151,46 +205,58 @@ router.delete('/:lembreteId', async (req, res) => {
   const { ownerId } = req.query;
 
   try {
-    if (!supabase) {
-      return res.status(500).json({ message: 'Supabase não está configurado no .env' });
+    if (supabase) {
+      const { data: existente, error: findError } = await supabase
+        .from('lembretes_conservacao')
+        .select('id, owner_id, peca_id')
+        .eq('id', lembreteId)
+        .maybeSingle();
+
+      if (!findError && existente) {
+        if (ownerId && String(existente.owner_id) !== String(ownerId)) {
+          return res.status(403).json({ message: 'Não autorizado a desativar este lembrete' });
+        }
+
+        const { data, error } = await supabase
+          .from('lembretes_conservacao')
+          .update({ ativo: false, updated_at: new Date().toISOString() })
+          .eq('id', lembreteId)
+          .select()
+          .single();
+
+        if (!error && data) {
+          await logEvent({
+            eventName: 'alerta_desativado',
+            pecaId: existente.peca_id,
+            userId: ownerId || existente.owner_id,
+            origin: 'direto',
+            isOwner: true,
+            metadata: { lembreteId, acao: 'desativar' }
+          });
+
+          return res.json({ message: 'Lembrete desativado com sucesso', lembrete: data });
+        }
+      }
     }
 
-    const { data: existente, error: findError } = await supabase
-      .from('lembretes_conservacao')
-      .select('id, owner_id, peca_id')
-      .eq('id', lembreteId)
-      .maybeSingle();
-
-    if (findError || !existente) {
+    // Fallback em memória
+    const memItem = inMemoryLembretes.find((l) => String(l.id) === String(lembreteId));
+    if (!memItem) {
       return res.status(404).json({ message: 'Lembrete não encontrado' });
     }
-
-    if (ownerId && String(existente.owner_id) !== String(ownerId)) {
-      return res.status(403).json({ message: 'Não autorizado a desativar este lembrete' });
-    }
-
-    const { data, error } = await supabase
-      .from('lembretes_conservacao')
-      .update({ ativo: false, updated_at: new Date().toISOString() })
-      .eq('id', lembreteId)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('[Supabase DELETE /lembretes Error]:', error.message);
-      return res.status(400).json({ message: 'Erro ao desativar lembrete', error: error.message });
-    }
+    memItem.ativo = false;
+    memItem.updated_at = new Date().toISOString();
 
     await logEvent({
       eventName: 'alerta_desativado',
-      pecaId: existente.peca_id,
-      userId: ownerId,
+      pecaId: memItem.peca_id,
+      userId: ownerId || memItem.owner_id,
       origin: 'direto',
       isOwner: true,
       metadata: { lembreteId, acao: 'desativar' }
     });
 
-    res.json({ message: 'Lembrete desativado com sucesso', lembrete: data });
+    res.json({ message: 'Lembrete desativado com sucesso', lembrete: memItem });
   } catch (err) {
     console.error('Erro inesperado ao desativar lembrete:', err);
     res.status(500).json({ message: 'Erro interno ao desativar lembrete' });

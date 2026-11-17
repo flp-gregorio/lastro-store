@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Search, X, User, Heart, Clock, Bell } from 'lucide-react';
+import { apiUrl, getCurrentUserId } from '../api';
 
 const CATEGORIES = [
   'ARTE',
@@ -15,7 +16,42 @@ const Navbar = () => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const fetchUnreadNotifications = useCallback(async () => {
+    const userId = getCurrentUserId();
+    try {
+      const response = await fetch(
+        apiUrl(`/api/notificacoes?userId=${encodeURIComponent(userId)}&lida=false&limit=50`)
+      );
+      if (response.ok) {
+        const data = await response.json();
+        if (Array.isArray(data)) {
+          setUnreadCount(data.filter((n) => !n.lida).length);
+        }
+      }
+    } catch {
+      // silent fallback
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchUnreadNotifications();
+  }, [location.pathname, fetchUnreadNotifications]);
+
+  useEffect(() => {
+    const handleNotificationsUpdated = () => {
+      fetchUnreadNotifications();
+    };
+    window.addEventListener('lastro:notifications-updated', handleNotificationsUpdated);
+    const intervalId = setInterval(fetchUnreadNotifications, 8000);
+    return () => {
+      window.removeEventListener('lastro:notifications-updated', handleNotificationsUpdated);
+      clearInterval(intervalId);
+    };
+  }, [fetchUnreadNotifications]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -77,7 +113,7 @@ const Navbar = () => {
               <User className="h-4 w-4 md:h-5 md:w-5" />
             </Link>
 
-            {/* Hábito - Lista de Desejos (RF06) */}
+            {/* Lista de Desejos */}
             <Link
               to="/wishlist"
               className="text-white hover:text-[#A69076] hidden md:block transition-colors duration-300 p-1"
@@ -86,7 +122,7 @@ const Navbar = () => {
               <Heart className="h-4 w-4 md:h-5 md:w-5" />
             </Link>
 
-            {/* Hábito - Lembretes (RF09) */}
+            {/* Lembretes */}
             <Link
               to="/lembretes"
               className="text-white hover:text-[#A69076] hidden md:block transition-colors duration-300 p-1"
@@ -95,13 +131,23 @@ const Navbar = () => {
               <Clock className="h-4 w-4 md:h-5 md:w-5" />
             </Link>
 
-            {/* Hábito - Notificações (RF14) */}
+            {/* Notificações com sino tremendo e bolinha com contagem */}
             <Link
               to="/notificacoes"
-              className="text-white hover:text-[#A69076] hidden md:block transition-colors duration-300 p-1"
-              title="Notificações"
+              className="relative text-white hover:text-[#A69076] transition-colors duration-300 p-1 flex flex-col items-center"
+              title={unreadCount > 0 ? `${unreadCount} notificação(ões) não lida(s)` : 'Notificações'}
             >
-              <Bell className="h-4 w-4 md:h-5 md:w-5" />
+              <Bell
+                className={[
+                  'h-4 w-4 md:h-5 md:w-5',
+                  unreadCount > 0 ? 'animate-bell-shake text-[#A69076]' : ''
+                ].join(' ')}
+              />
+              {unreadCount > 0 && (
+                <span className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 min-w-[16px] h-[16px] px-1 rounded-full bg-[#A69076] text-black font-sans font-bold text-[9px] leading-[16px] text-center shadow-md">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
             </Link>
 
             <Link

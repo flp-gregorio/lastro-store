@@ -6,7 +6,7 @@ import {
   ArrowLeft,
   Edit2
 } from 'lucide-react';
-import { apiUrl } from '../api';
+import { apiUrl, getCurrentUserId } from '../api';
 
 const FREQUENCIAS = {
   mensal: 'Mensal',
@@ -27,7 +27,7 @@ const Lembretes = () => {
   const [editMode, setEditMode] = useState(false);
   const [editId, setEditId] = useState(null);
 
-  const ownerId = localStorage.getItem('userId') || 'anon_user';
+  const ownerId = getCurrentUserId();
 
   useEffect(() => {
     carregarLembretes();
