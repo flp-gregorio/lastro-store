@@ -132,7 +132,32 @@ CREATE INDEX IF NOT EXISTS idx_categorias_rastreadas_categoria
 -- ----------------------------------------------------------------------------
 -- 4. AJUSTES EM `public.pecas`
 -- ----------------------------------------------------------------------------
--- Alinha os valores padrão com o fluxo de submissão em análise e curadoria.
+-- Permite preço >= 0 (para submissões sem valor estimado) e alinha os padrões
+-- com o fluxo de submissão em análise e curadoria.
+ALTER TABLE public.pecas
+  DROP CONSTRAINT IF EXISTS pecas_price_check;
+
+DO $$
+DECLARE
+  constraint_record record;
+BEGIN
+  FOR constraint_record IN
+    SELECT c.conname
+    FROM pg_constraint c
+    JOIN pg_class t ON c.conrelid = t.oid
+    JOIN pg_namespace n ON t.relnamespace = n.oid
+    WHERE n.nspname = 'public'
+      AND t.relname = 'pecas'
+      AND c.contype = 'c'
+      AND pg_get_constraintdef(c.oid) ~* '\mprice\M'
+  LOOP
+    EXECUTE format('ALTER TABLE public.pecas DROP CONSTRAINT IF EXISTS %I', constraint_record.conname);
+  END LOOP;
+END $$;
+
+ALTER TABLE public.pecas
+  ADD CONSTRAINT pecas_price_check CHECK (price >= 0::numeric);
+
 ALTER TABLE public.pecas
   ALTER COLUMN status SET DEFAULT 'UNDER_VALIDATION',
   ALTER COLUMN expert_name SET DEFAULT 'Aguardando Curadoria';
@@ -261,8 +286,161 @@ ALTER TABLE public.transferencias_passaporte ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "transferencias_passaporte_all" ON public.transferencias_passaporte;
 CREATE POLICY "transferencias_passaporte_all" ON public.transferencias_passaporte FOR ALL USING (true) WITH CHECK (true);
 
+-- ----------------------------------------------------------------------------
+-- 7. CONTA ADMINISTRADORA INICIAL (lastro@lastro.com / lastroadmin)
+-- ----------------------------------------------------------------------------
+-- Cria (ou atualiza) a conta admin diretamente em `auth.users`,
+-- `auth.identities` e `public.perfis_usuario` com papel 'EquipeLastro'.
+DO $$
+DECLARE
+  v_user_id uuid;
+  v_instance_id uuid;
+  v_now timestamptz := now();
+  v_admin_email text := 'lastro@lastro.com';
+  v_admin_pass text := 'lastroadmin';
+  v_encrypted_pw text;
+BEGIN
+  PERFORM set_config('search_path', current_setting('search_path') || ',extensions', true);
+
+  v_encrypted_pw := crypt(v_admin_pass, gen_salt('bf', 10));
+
+  SELECT COALESCE(
+    (SELECT id FROM auth.instances LIMIT 1),
+    '00000000-0000-0000-0000-000000000000'::uuid
+  )
+  INTO v_instance_id;
+
+  SELECT id
+  INTO v_user_id
+  FROM auth.users
+  WHERE lower(email) = lower(v_admin_email)
+  ORDER BY created_at DESC NULLS LAST
+  LIMIT 1;
+
+  IF v_user_id IS NULL THEN
+    v_user_id := gen_random_uuid();
+
+    INSERT INTO auth.users (
+      instance_id,
+      id,
+      aud,
+      role,
+      email,
+      encrypted_password,
+      email_confirmed_at,
+      confirmation_token,
+      recovery_token,
+      email_change_token_new,
+      email_change,
+      phone_change,
+      phone_change_token,
+      email_change_token_current,
+      email_change_confirm_status,
+      reauthentication_token,
+      raw_app_meta_data,
+      raw_user_meta_data,
+      is_super_admin,
+      is_sso_user,
+      is_anonymous,
+      created_at,
+      updated_at
+    )
+    VALUES (
+      v_instance_id,
+      v_user_id,
+      'authenticated',
+      'authenticated',
+      v_admin_email,
+      v_encrypted_pw,
+      v_now,
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      0,
+      '',
+      '{"provider":"email","providers":["email"],"role":"EquipeLastro"}'::jsonb,
+      '{"name":"Equipe Lastro","role":"EquipeLastro"}'::jsonb,
+      false,
+      false,
+      false,
+      v_now,
+      v_now
+    );
+  ELSE
+    UPDATE auth.users
+    SET
+      encrypted_password = v_encrypted_pw,
+      email_confirmed_at = COALESCE(email_confirmed_at, v_now),
+      confirmation_token = COALESCE(confirmation_token, ''),
+      recovery_token = COALESCE(recovery_token, ''),
+      email_change_token_new = COALESCE(email_change_token_new, ''),
+      email_change = COALESCE(email_change, ''),
+      phone_change = COALESCE(phone_change, ''),
+      phone_change_token = COALESCE(phone_change_token, ''),
+      email_change_token_current = COALESCE(email_change_token_current, ''),
+      reauthentication_token = COALESCE(reauthentication_token, ''),
+      raw_app_meta_data = COALESCE(raw_app_meta_data, '{}'::jsonb) || '{"provider":"email","providers":["email"],"role":"EquipeLastro"}'::jsonb,
+      raw_user_meta_data = COALESCE(raw_user_meta_data, '{}'::jsonb) || '{"name":"Equipe Lastro","role":"EquipeLastro"}'::jsonb,
+      deleted_at = NULL,
+      banned_until = NULL,
+      updated_at = v_now
+    WHERE id = v_user_id;
+  END IF;
+
+  INSERT INTO auth.identities (
+    id,
+    user_id,
+    identity_data,
+    provider,
+    provider_id,
+    last_sign_in_at,
+    created_at,
+    updated_at
+  )
+  SELECT
+    gen_random_uuid(),
+    v_user_id,
+    jsonb_build_object(
+      'sub', v_user_id::text,
+      'email', v_admin_email,
+      'email_verified', true,
+      'phone_verified', false
+    ),
+    'email',
+    v_user_id::text,
+    v_now,
+    v_now,
+    v_now
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM auth.identities i
+    WHERE i.user_id = v_user_id
+      AND i.provider = 'email'
+  );
+
+  INSERT INTO public.perfis_usuario (id, email, nome, role, criado_em, atualizado_em)
+  VALUES (
+    v_user_id::text,
+    lower(v_admin_email),
+    'Equipe Lastro',
+    'EquipeLastro',
+    v_now,
+    v_now
+  )
+  ON CONFLICT (id) DO UPDATE
+  SET
+    email = EXCLUDED.email,
+    nome = EXCLUDED.nome,
+    role = 'EquipeLastro',
+    atualizado_em = v_now;
+END $$;
+
 -- ============================================================================
--- COMO PROMOVER UMA CONTA A ADMIN / REPRESENTANTE DA LOJA
+-- COMO PROMOVER OUTRAS CONTAS A ADMIN / REPRESENTANTE DA LOJA
 -- ============================================================================
 -- 1. Cadastre a conta normalmente pela tela de registro do site (/register).
 -- 2. Depois, execute o UPDATE abaixo no SQL Editor do Supabase (trocando o

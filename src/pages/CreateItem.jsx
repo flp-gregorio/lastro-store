@@ -25,6 +25,52 @@ const CATEGORIES = [
   'Diversos'
 ];
 
+const compressImageFile = (file, maxDimension = 1200, quality = 0.82) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Falha ao ler o arquivo de imagem.'));
+    reader.onload = () => {
+      const rawDataUrl = reader.result;
+      if (file.type === 'image/svg+xml' || typeof rawDataUrl !== 'string') {
+        resolve(rawDataUrl);
+        return;
+      }
+
+      const img = new Image();
+      img.onload = () => {
+        try {
+          let { width, height } = img;
+          if (width > maxDimension || height > maxDimension) {
+            if (width >= height) {
+              height = Math.round((height * maxDimension) / width);
+              width = maxDimension;
+            } else {
+              width = Math.round((width * maxDimension) / height);
+              height = maxDimension;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(rawDataUrl);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressed = canvas.toDataURL('image/jpeg', quality);
+          resolve(compressed && compressed.length < rawDataUrl.length ? compressed : rawDataUrl);
+        } catch {
+          resolve(rawDataUrl);
+        }
+      };
+      img.onerror = () => resolve(rawDataUrl);
+      img.src = rawDataUrl;
+    };
+    reader.readAsDataURL(file);
+  });
+
 const CreateItem = () => {
   const fileInputRef = useRef(null);
   const docInputRef = useRef(null);
@@ -62,7 +108,7 @@ const CreateItem = () => {
   };
 
   // Image Upload handler
-  const handleFileUpload = (e) => {
+  const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -71,13 +117,14 @@ const CreateItem = () => {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64String = reader.result;
+    try {
+      const base64String = await compressImageFile(file);
       setImagePreview(base64String);
       setFormData((prev) => ({ ...prev, image: base64String }));
-    };
-    reader.readAsDataURL(file);
+    } catch (error) {
+      console.error(error);
+      alert('Não foi possível processar a imagem selecionada.');
+    }
   };
 
   const handleUrlChange = (e) => {
@@ -174,8 +221,14 @@ const CreateItem = () => {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Falha ao submeter peça');
+        const errorData = await response.json().catch(() => ({}));
+        const validationDetail = Array.isArray(errorData.errors) && errorData.errors.length > 0
+          ? errorData.errors.map((item) => item.message).filter(Boolean).join('; ')
+          : '';
+        const detail = [errorData.message, validationDetail || errorData.error]
+          .filter(Boolean)
+          .join(': ');
+        throw new Error(detail || `Falha ao submeter peça (HTTP ${response.status})`);
       }
 
       const created = await response.json();

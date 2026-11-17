@@ -9,6 +9,8 @@ const { linkFirstVisitToUser, logEvent } = require('../utils/eventLogger');
 // Cache em memória para contas de fallback quando houver rate-limit de SMTP no Supabase
 const localUsers = new Map();
 const localUsersById = new Map();
+// Override programático restrito a chamadas diretas em memória (ex: suíte de testes local)
+const programmaticRoleOverrides = new Map();
 
 const saveLocalUser = (userObj) => {
   if (!userObj || !userObj.id) return;
@@ -26,6 +28,13 @@ const saveLocalUser = (userObj) => {
  */
 const resolveDatabaseRole = async ({ userId = null, email = null, authUser = null } = {}) => {
   const emailKey = email ? String(email).trim().toLowerCase() : null;
+
+  if (userId && programmaticRoleOverrides.has(String(userId))) {
+    return programmaticRoleOverrides.get(String(userId));
+  }
+  if (emailKey && programmaticRoleOverrides.has(emailKey)) {
+    return programmaticRoleOverrides.get(emailKey);
+  }
 
   if (supabase) {
     try {
@@ -108,10 +117,19 @@ const setLocalUserRole = async (identifier, newRole) => {
   const key = String(identifier).trim();
   const keyLower = key.toLowerCase();
 
+  programmaticRoleOverrides.set(key, newRole);
+  programmaticRoleOverrides.set(keyLower, newRole);
+
   let target = localUsersById.get(key) || localUsers.get(keyLower) || null;
   if (target) {
     target.role = newRole;
     saveLocalUser(target);
+    if (target.id) {
+      programmaticRoleOverrides.set(String(target.id), newRole);
+    }
+    if (target.email) {
+      programmaticRoleOverrides.set(String(target.email).trim().toLowerCase(), newRole);
+    }
   }
 
   if (supabase) {

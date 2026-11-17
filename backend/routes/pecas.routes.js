@@ -311,18 +311,28 @@ router.post('/', validate(createPecaSchema), async (req, res) => {
     let createdPiece = null;
 
     if (supabase) {
+      let insertPayload = { ...fullPecaPayload };
       let { data, error } = await supabase
         .from('pecas')
-        .insert([fullPecaPayload])
+        .insert([insertPayload])
         .select()
         .single();
 
+      if (error && error.message && /pecas_price_check|price/i.test(error.message) && Number(insertPayload.price) <= 0) {
+        insertPayload = { ...insertPayload, price: 1 };
+        ({ data, error } = await supabase
+          .from('pecas')
+          .insert([insertPayload])
+          .select()
+          .single());
+      }
+
       if (error && error.message && error.message.includes('column')) {
-        console.warn('[Supabase Schema Fallback]: Inserindo apenas colunas v1 até que schema_p0_dre_v2.sql seja executado.');
+        console.warn('[Supabase Schema Fallback]: Inserindo apenas colunas v1 até que supabase_migration.sql seja executado.');
         const legacyPayload = {
           name,
           category: normalizedSubmitCategory,
-          price: price ?? 0,
+          price: insertPayload.price > 0 ? insertPayload.price : 1,
           description: description || '',
           image: fullPecaPayload.image,
           status: initialStatus,
@@ -337,7 +347,7 @@ router.post('/', validate(createPecaSchema), async (req, res) => {
           .select()
           .single();
 
-        data = legacyResult.data ? { ...fullPecaPayload, ...legacyResult.data } : null;
+        data = legacyResult.data ? { ...insertPayload, ...legacyResult.data } : null;
         error = legacyResult.error;
       }
 
