@@ -176,7 +176,7 @@ const BuyerDashboard = ({ user, onLogout }) => {
   const [inviteProcessing, setInviteProcessing] = useState(false);
   const [inviteResult, setInviteResult] = useState(null);
 
-  const checkFirstInvestment = async () => {
+  const checkFirstInvestment = useCallback(async () => {
     try {
       const res = await fetch(apiUrl(`/api/habito/primeiro-investimento/status?userId=${userId}`));
       if (res.ok) {
@@ -186,7 +186,7 @@ const BuyerDashboard = ({ user, onLogout }) => {
     } catch (err) {
       console.error('Erro ao verificar primeiro investimento:', err);
     }
-  };
+  }, [userId]);
 
   const handleInviteResponse = async (aceito, acao) => {
     setInviteProcessing(true);
@@ -1058,8 +1058,13 @@ const Dashboard = () => {
     const storedUser = localStorage.getItem('user');
     if (!storedUser) {
       navigate('/login');
-    } else {
+      return;
+    }
+    try {
       setUser(JSON.parse(storedUser));
+    } catch {
+      localStorage.removeItem('user');
+      navigate('/login');
     }
   }, [navigate]);
 
